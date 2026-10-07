@@ -1,0 +1,15 @@
+node_modules/
+android/.gradle/
+android/app/build/
+android/build/
+ios/Pods/
+.env
+.env.*
+!.env.example
+*.keystore
+*.jks
+*.log
+.DS_Store
+.idea/
+.vscode/
+coverage/
