@@ -26,7 +26,7 @@ export async function signInWithGoogle() {
     email: user.email ?? null,
     photoURL: user.photoURL ?? null,
     onboardingCompleted: existing.data()?.onboardingCompleted ?? false,
-    ...(existing.exists ? {} : {createdAt: now}),
+    ...(existing.exists() ? {} : {createdAt: now}),
     lastActiveAt: now,
   }, {merge: true});
   return user;
