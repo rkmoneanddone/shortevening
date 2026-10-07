@@ -1,4 +1,4 @@
-# ShortEvening V1 Product Specification
+# SortEvening V1 Product Specification
 
 ## Promise
 Three relevant evening snack ideas, remembered family history, and no repeats during the previous 7 days for Premium users.
@@ -26,4 +26,4 @@ Google login → family onboarding → 3 suggestions → recipe → Made Today �
 Users can access only their own private data. Clients cannot grant Premium. Razorpay and AI secrets remain server-side. Payment entitlement is backend-authoritative.
 
 ## Name
-ShortEvening is a working name and must remain centrally configurable.
+SortEvening is a working name and must remain centrally configurable.
