@@ -1,4 +1,4 @@
-# ShortEvening
+# SortEvening
 
 Lightweight Android-first family evening-snack decision assistant.
 
