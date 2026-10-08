@@ -66,13 +66,13 @@ service cloud.firestore {
         ]);
 
       match /history/{entryId} {
-        allow get, list: if owner(userId);
+        allow get, list: if false; // History is read via getSavedItems with entitlement checks.
         allow create: if owner(userId) && validHistory(request.resource.data);
         allow update, delete: if false;
       }
 
       match /favorites/{recipeId} {
-        allow get, list: if owner(userId);
+        allow get, list: if false;
         allow create, delete: if false; // Server callable enforces plan and 10-item cap.
         allow update: if false;
       }
