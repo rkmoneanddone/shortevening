@@ -84,3 +84,15 @@ button:focus-visible{outline:3px solid #d49b63;outline-offset:3px}
  .mobiletabs button.active{color:#1d7541;font-weight:850}
  .content{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
 }
+
+
+/* A direct mobile feature menu works even when the fixed bottom bar is obscured. */
+.topbar{position:relative;z-index:40}.topbar-actions{display:flex;align-items:center;gap:10px}
+.mobile-menu-button,.mobile-feature-menu{display:none}
+@media(max-width:950px){
+ .mobile-menu-button{display:block;border:1px solid #d5e4d3;background:#fff;border-radius:12px;color:#24683c;padding:12px 14px;font-size:15px;font-weight:800;min-height:44px}
+ .mobile-feature-menu{display:grid;position:absolute;top:calc(100% - 1px);left:10px;right:10px;background:#fff;border:1px solid #dbe8d8;border-radius:16px;padding:10px;box-shadow:0 16px 40px #223b2c25;z-index:50;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+ .mobile-feature-menu button{background:#f2f7ef;border:0;border-radius:10px;padding:14px 8px;font-size:15px;color:#225d37;font-weight:750}
+ .mobile-feature-menu button:last-child{grid-column:1/-1}
+}
+@media(max-width:420px){.account{padding:5px}.topbar{padding:0 12px}.mobile-menu-button{padding:10px}}
