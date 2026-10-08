@@ -43,3 +43,6 @@ button:focus-visible{outline:3px solid #d49b63;outline-offset:3px}
 
 /* Account dropdown and pantry search are responsive and keyboard accessible. */
 .accountwrap{position:relative}.accountmenu{position:absolute;right:0;top:calc(100% + 10px);width:235px;background:#fff;border:1px solid #e4eae0;border-radius:14px;padding:8px;box-shadow:0 15px 45px #24332925;z-index:30}.accountmenu button{display:block;width:100%;text-align:left;border:0;background:transparent;border-radius:9px;padding:13px;font-weight:700;color:#344b39}.accountmenu button:hover,.accountmenu button:focus-visible{background:#eef5eb}.pantryform{display:flex;gap:12px;margin:26px 0}.pantryform input{min-width:0;flex:1;border:1px solid #dce5d8;border-radius:12px;padding:14px 17px;font:inherit;background:#fff}.pantryform input:focus-visible{outline:3px solid #b3d5b6}.hint a{color:#39734b;font-weight:750}.mobiletabs{gap:3px}.mobiletabs button{min-width:0;flex:1}@media(max-width:680px){.pantryform{flex-direction:column}.accountmenu{right:0}.mobiletabs button{font-size:10px}}
+
+/* AI suggestions preserve whitespace and remain secondary to deterministic recipe matches. */
+.aiideas{margin:20px 0}.aiideas h3{margin:0 0 8px}.airesponse{white-space:pre-wrap;line-height:1.75;margin-top:18px;padding:18px;border-radius:14px;background:#f1f7ee;overflow-wrap:anywhere}
