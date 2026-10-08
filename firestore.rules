@@ -1,17 +1,94 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function owner(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function validProfile(data, userId) {
+      return data.keys().hasOnly([
+        'uid', 'displayName', 'email', 'photoURL', 'household',
+        'diet', 'allergies', 'preferredMinutes', 'onboardingCompleted',
+        'createdAt', 'updatedAt', 'familySummary'
+      ])
+      && data.uid == userId
+      && data.household is map
+      && data.household.keys().hasOnly(['adults', 'children'])
+      && data.household.adults is int
+      && data.household.adults >= 1 && data.household.adults <= 12
+      && data.household.children is int
+      && data.household.children >= 0 && data.household.children <= 12
+      && data.diet in ['vegetarian', 'eggetarian', 'nonvegetarian']
+      && data.allergies is list
+      && data.allergies.size() <= 12
+      && data.preferredMinutes in [10, 15, 20, 30]
+      && data.onboardingCompleted is bool;
+    }
+
+    function validHistory(data) {
+      return data.keys().hasOnly(['recipeId', 'dishFamily', 'dishName', 'madeAt', 'source'])
+      && data.recipeId is string && data.recipeId.size() <= 100
+      && data.dishFamily is string && data.dishFamily.size() <= 100
+      && data.dishName is string && data.dishName.size() <= 150
+      && data.madeAt == request.time;
+    }
+
+    function validFavorite(data, recipeId) {
+      return data.keys().hasOnly(['recipeId', 'createdAt'])
+      && data.recipeId == recipeId
+      && data.createdAt == request.time;
+    }
+
     match /users/{userId} {
-      allow read, create, update: if request.auth != null && request.auth.uid == userId;
-      allow delete: if false;
+      allow get: if owner(userId);
+      allow list, delete: if false;
+      allow create: if owner(userId) && validProfile(request.resource.data, userId);
+      allow update: if owner(userId)
+        && validProfile(request.resource.data, userId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'displayName', 'email', 'photoURL', 'household', 'diet',
+          'allergies', 'preferredMinutes', 'onboardingCompleted', 'updatedAt'
+        ]);
+
+      match /history/{entryId} {
+        allow get, list: if owner(userId);
+        allow create: if owner(userId) && validHistory(request.resource.data);
+        allow update, delete: if false;
+      }
+
+      match /favorites/{recipeId} {
+        allow get, list: if owner(userId);
+        allow create: if owner(userId) && validFavorite(request.resource.data, recipeId);
+        allow delete: if owner(userId);
+        allow update: if false;
+      }
+
+      match /entitlements/{entitlementId} {
+        allow read: if owner(userId);
+        allow write: if false;
+      }
+
+      match /recommendations/{dayId} {
+        allow read: if owner(userId);
+        allow write: if false;
+      }
+
       match /{document=**} {
-        allow read, write: if request.auth != null && request.auth.uid == userId;
+        allow read, write: if false;
       }
     }
+
     match /recipes/{recipeId} {
-      allow read: if request.auth != null;
+      allow read: if signedIn() && resource.data.published == true;
       allow write: if false;
     }
-    match /{document=**} { allow read, write: if false; }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
   }
 }
