@@ -98,14 +98,43 @@ button:focus-visible{outline:3px solid #d49b63;outline-offset:3px}
 @media(max-width:420px){.account{padding:5px}.topbar{padding:0 12px}.mobile-menu-button{padding:10px}}
 
 
-/* Final polish: full-height welcome and clear next step after daily picks. */
-.authscreen:has(.landing-panel){min-height:100svh;min-height:100dvh;padding:clamp(16px,3vw,36px);align-items:center;background:radial-gradient(circle at 80% 15%,#ffe5c6 0,transparent 45%),linear-gradient(135deg,#f0f7e9,#fffaf1)}
-.landing-panel{width:min(1160px,100%);min-height:calc(100dvh - clamp(32px,6vw,72px));display:grid;grid-template-columns:minmax(0,1.12fr) minmax(0,.88fr);align-items:center;gap:clamp(22px,5vw,72px);padding:clamp(28px,5vw,70px);overflow:hidden}
-.landing-copy{max-width:610px}.landing-copy h1{font-size:clamp(40px,5vw,72px);margin:22px 0}.landing-accent{color:#307c4b}.landing-copy p{max-width:540px;color:#5e6b60}.landing-lead{font-size:clamp(19px,2vw,23px)!important;color:#283b2e!important;font-weight:650;line-height:1.5}
-.landing-benefits{display:grid;gap:11px;margin:25px 0;color:#316c42;font-weight:750}.landing-cta{min-height:55px;padding:15px 25px}.landing-assurance{font-size:12px!important;color:#7d8c7d!important}
-.landing-visual{min-height:430px;border-radius:32px;background:linear-gradient(150deg,#e5f3dc,#fbe8d4);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:12px;padding:32px;text-align:center;box-shadow:inset 0 0 0 1px #ffffff9c}
-.landing-visual-emoji{font-size:clamp(100px,13vw,175px);filter:drop-shadow(0 14px 20px #38442b20)}.landing-visual strong{font-size:clamp(22px,3vw,34px);color:#264e32}.landing-visual>span{color:#6b795e}
-.landing-mini-card{display:flex;justify-content:space-between;gap:16px;width:min(100%,320px);background:#ffffffd9;border-radius:14px;padding:13px 17px;text-align:left;color:#425944}.landing-mini-card b{font-size:12px;color:#2c7744}
-.home-pantry-cta{margin:35px 0 10px;padding:clamp(24px,3vw,35px);border-radius:24px;background:linear-gradient(115deg,#e6f3df,#f8f3df);border:1px solid #dbe9d3;display:flex;align-items:center;justify-content:space-between;gap:24px}.home-pantry-cta h2{margin:10px 0 6px}.home-pantry-cta p{margin:0;max-width:530px}.home-pantry-cta .primary{white-space:nowrap}
-@media(max-width:760px){.landing-panel{grid-template-columns:1fr;gap:22px;min-height:calc(100dvh - 24px);padding:clamp(22px,5vw,36px)}.authscreen:has(.landing-panel){padding:12px;align-items:stretch}.landing-copy h1{font-size:clamp(38px,9vw,54px);margin:14px 0}.landing-lead{font-size:18px!important}.landing-visual{min-height:180px;padding:15px;gap:4px}.landing-visual-emoji{font-size:68px}.landing-visual strong{font-size:20px}.landing-mini-card{display:none}.landing-benefits{gap:7px;margin:15px 0}.landing-cta{width:100%}.home-pantry-cta{flex-direction:column;align-items:stretch}.home-pantry-cta .primary{width:100%;white-space:normal}}
-@media(max-width:380px){.landing-visual{min-height:130px}.landing-visual-emoji{font-size:52px}.landing-copy p{font-size:14px}.landing-benefits{font-size:13px}}
+
+/* Unified compact typography and layout, October refinement. */
+:root{font-family:Inter,"Segoe UI",system-ui,sans-serif;font-size:14px;font-weight:400;line-height:1.45}
+body,button,input,select,textarea{font-family:inherit;font-weight:400}
+h1,h2,h3,h4,strong,b,.brand,.eyebrow,.primary,.secondary,.view,.navlinks button,.mobiletabs button,.account,.cardbody h3,.landing-visual strong,.landing-mini-card b{font-weight:400!important}
+h1,.intro h1,.authpanel h1{font-size:clamp(25px,2.6vw,34px)!important;line-height:1.2;letter-spacing:-.025em;margin:6px 0 10px}
+h2,.highlight h2,.sectionheading h2,.surface h2{font-size:clamp(18px,1.8vw,22px)!important;letter-spacing:-.015em;line-height:1.3}
+h3,.cardbody h3{font-size:17px!important;line-height:1.35}
+p,.intro p,.authpanel>p,.landing-copy p,.landing-lead{font-size:14px!important;line-height:1.5;margin:7px 0;color:#5b675c}
+.eyebrow{font-size:10px!important;letter-spacing:.07em}
+.sidebar{width:220px;padding:22px 16px}.brand{font-size:21px}.brand small{font-size:10px}.navlinks{margin-top:32px;gap:3px}.navlinks button{font-size:13px;padding:11px 12px}
+.topbar{height:60px;padding:0 22px}.content{max-width:1080px;padding:22px 24px 75px}
+.highlight{margin:17px 0;padding:18px 22px;border-radius:15px}.highlightemoji{font-size:38px}
+.sectionheading{margin:22px 0 12px}.recipecards{gap:13px}.recipecard,.surface{border-radius:14px}.foodart{height:135px}.foodart span{font-size:60px}.cardbody{padding:15px}.cardbody p{font-size:12px!important}.cardactions,.actions{gap:8px;margin-top:12px}
+.primary,.secondary,.view{font-size:13px;min-height:40px;padding:10px 15px;border-radius:9px}.heart{padding:8px 12px}.surface{padding:19px;margin:14px 0}.surface ul,.surface ol{line-height:1.65}
+.authscreen:has(.landing-panel){height:100vh;height:100dvh;min-height:0;padding:12px;align-items:stretch;overflow:hidden;background:linear-gradient(135deg,#f0f7e9,#fffaf1)}
+.landing-panel{width:min(1080px,100%);height:100%;min-height:0;margin:auto;display:grid;grid-template-columns:minmax(0,1.2fr) minmax(0,.8fr);align-items:center;gap:clamp(14px,3vw,35px);padding:clamp(16px,3vw,35px);overflow:hidden}
+.landing-copy{min-width:0}.landing-copy h1{font-size:clamp(29px,3.3vw,42px)!important;margin:12px 0}.landing-accent{color:#307c4b}.landing-lead{font-size:16px!important;color:#334838!important}
+.landing-benefits{display:grid;gap:7px;margin:16px 0;font-size:13px;color:#316c42}.landing-cta{min-height:43px}.landing-assurance{font-size:11px!important}
+.landing-visual{min-height:0;height:min(55vh,350px);border-radius:22px;background:linear-gradient(150deg,#e5f3dc,#fbe8d4);display:flex;flex-direction:column;justify-content:center;align-items:center;gap:9px;padding:20px;text-align:center}
+.landing-visual-emoji{font-size:90px}.landing-visual strong{font-size:22px}.landing-visual>span{font-size:13px}
+.landing-mini-card{display:flex;justify-content:space-between;gap:10px;width:min(100%,280px);background:#ffffffd9;border-radius:10px;padding:9px 12px;font-size:12px}.landing-mini-card b{font-size:11px}
+.home-pantry-cta{margin:20px 0 0;padding:20px;border-radius:15px;background:#edf5e6;display:flex;align-items:center;justify-content:space-between;gap:16px}.home-pantry-cta h2{margin:5px 0}.home-pantry-cta .primary{flex-shrink:0}
+@media(max-width:950px){.sidebar{display:none!important}.content{padding:20px 18px 110px}.mobiletabs{display:flex!important}}
+@media(max-width:680px){
+ .topbar{height:56px;padding:0 12px}.mobilebrand{font-size:18px}
+ .content{padding:16px 14px 110px}.intro h1{font-size:27px!important}
+ .recipecards,.twocol{grid-template-columns:1fr}.foodart{height:135px}
+ .highlight{padding:14px 16px}.highlightemoji{font-size:33px}.cardbody{padding:14px}
+ .authscreen:has(.landing-panel){padding:7px}
+ .landing-panel{grid-template-columns:1fr;gap:8px;padding:13px 17px;align-content:center;overflow:hidden}
+ .landing-copy h1{font-size:clamp(27px,7vw,34px)!important;margin:6px 0}
+ .landing-copy p{font-size:12px!important;line-height:1.38}.landing-lead{font-size:13px!important}
+ .landing-benefits{gap:4px;margin:10px 0;font-size:11px}
+ .landing-cta{width:100%;min-height:39px}.landing-assurance{font-size:10px!important}
+ .landing-visual{height:auto;min-height:76px;padding:8px;gap:1px}.landing-visual-emoji{font-size:36px}.landing-visual strong{font-size:14px}.landing-visual>span{font-size:11px}.landing-mini-card{display:none}
+ .home-pantry-cta{flex-direction:column;align-items:stretch;padding:16px}.home-pantry-cta .primary{width:100%}
+ .mobiletabs button{font-size:10px!important}
+}
+@media(max-height:700px){.landing-visual{height:auto;min-height:90px}.landing-visual-emoji{font-size:43px}.landing-mini-card{display:none}.landing-panel{gap:8px}.landing-copy h1{margin:4px 0}.landing-benefits{margin:7px 0;gap:3px}}
