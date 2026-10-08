@@ -67,7 +67,7 @@ const status=(await accessCall()).data;setAccess(status);
 const snapshot=await getDoc(doc(db,'users',next.uid));if(snapshot.exists()){const d=snapshot.data();setProfile({adults:d.household?.adults??2,children:d.household?.children??0,diet:d.diet??'vegetarian',allergies:d.allergies??[],minutes:d.preferredMinutes??20});setOnboarded(Boolean(d.onboardingCompleted));const [historyDocs,favoriteDocs]=await Promise.all([getDocs(recentHistoryQuery(next.uid,status.historyDays)),status.favoritesEnabled?getDocs(favoriteQuery(next.uid,5)):Promise.resolve(null)]);setHistory(historyDocs.docs.map(h=>({id:h.id,recipeId:String(h.data().recipeId),dishName:String(h.data().dishName),date:h.data().madeAt?.toDate?.()?.toLocaleDateString()??'Recently',dateKey:h.data().madeAt?.toDate?.()?dayKey(h.data().madeAt.toDate()):undefined,aiRecipe:h.data().aiRecipe as AiRecipe|undefined})));setFavorites(favoriteDocs?.docs.map(f=>f.id)??[]);}else setOnboarded(false);}else{setAccess(FREE_ACCESS);setOnboarded(false);setHistory([]);setFavorites([]);}}catch(error){console.error('Profile loading',error);setFailure(errorText(error));setOnboarded(false);}finally{setBusy(false);}});return unsubscribe;},[]);
 
 /** Sign in with Google and expose popup failures to the user. */
-async function login(){setFailure('');try{await signInWithPopup(auth,googleProvider);}catch(error){console.error('Sign-in',error);setFailure(errorText(error));}}
+async function login(){setFailure('');setBusy(true);try{await signInWithPopup(auth,googleProvider);}catch(error){console.error('Sign-in',error);setFailure(errorText(error));setBusy(false);}}
 
 /** Save structured onboarding data or profile edits to the signed-in account. */
 async function saveProfile(){if(!user)return;setSaving(true);setFailure('');try{await setDoc(doc(db,'users',user.uid),{uid:user.uid,displayName:user.displayName,email:user.email,photoURL:user.photoURL,household:{adults:profile.adults,children:profile.children},diet:profile.diet,allergies:profile.allergies,preferredMinutes:profile.minutes,onboardingCompleted:true,updatedAt:serverTimestamp()},{merge:true});setOnboarded(true);setStep(0);setMessage('Your preferences are saved.');}catch(error){console.error('Save profile',error);setFailure(errorText(error));}finally{setSaving(false);}}
@@ -93,7 +93,7 @@ function pantryMatches(){return RECIPES.filter(r=>(profile.diet!=='vegetarian'||
 /** Request optional AI ideas from the authenticated Firebase callable backend. */
 async function suggestWithAI(){
  if(!appCheckReady||pantry.length===0||aiBusy)return;
- const cacheKey=JSON.stringify([user?.uid,[...pantry].sort(),profile.diet,[...profile.allergies].sort(),profile.minutes]);
+ const cacheKey=JSON.stringify([user?.uid,dayKey(new Date()),access.tier,[...pantry].sort(),profile.diet,[...profile.allergies].sort(),profile.minutes]);
  if(aiCache[cacheKey]){setAiRecipes(aiCache[cacheKey]);setSelectedAiRecipe(null);setAiError('');setAiLimitReached(false);return;}
  setAiBusy(true);setAiError('');setAiLimitReached(false);setSelectedAiRecipe(null);
  try{
