@@ -60,13 +60,13 @@ async function toggleFavorite(item:Recipe){if(!user)return;setSaving(true);setFa
 async function madeToday(item:Recipe){if(!user||saving)return;setSaving(true);setFailure('');try{await addDoc(collection(db,'users',user.uid,'history'),{recipeId:item.id,dishFamily:item.id,dishName:item.name,madeAt:serverTimestamp()});setMessage(item.name+' added to your history.');await loadLists();}catch(error){console.error('Made Today',error);setFailure(errorText(error));}finally{setSaving(false);}}
 
 /** Add an ingredient from the user's pantry without duplicates. */
-function addIngredient(){const value=pantryInput.trim().toLowerCase();if(!value)return;setPantry(old=>old.includes(value)?old:[...old,value]);setPantryInput('');}
+function addIngredient(){const values=pantryInput.split(/[,;\n]+/).map(x=>x.trim().toLowerCase()).filter(Boolean);if(!values.length)return;setPantry(old=>[...new Set([...old,...values])].slice(0,20));setPantryInput('');}
 
 /** Rank safe recipes by how many listed ingredients are already available. */
 function pantryMatches(){return RECIPES.filter(r=>(profile.diet!=='vegetarian'||r.diet==='vegetarian')&&!r.allergens.some(a=>profile.allergies.includes(a))&&r.minutes<=profile.minutes).map(r=>({...r,available:r.ingredients.filter(i=>pantry.includes(i.toLowerCase())),missing:r.ingredients.filter(i=>!pantry.includes(i.toLowerCase()))})).sort((a,b)=>b.available.length-a.available.length||a.missing.length-b.missing.length).slice(0,3);}
 
 /** Request optional AI ideas from the authenticated Firebase callable backend. */
-async function suggestWithAI(){if(!appCheckReady||pantry.length===0||aiBusy)return;setAiBusy(true);setAiError('');setAiResult('');try{const call=httpsCallable<{ingredients:string[]},{suggestion:string;disclaimer:string}>(functions,'suggestPantrySnacks');const response=await call({ingredients:pantry.slice(0,20)});setAiResult(response.data.suggestion+'\\n\\n'+response.data.disclaimer);}catch(error){console.error('AI pantry ideas',error);setAiError('AI ideas are unavailable right now. Your standard recipe matches still work.');}finally{setAiBusy(false);}}
+async function suggestWithAI(){if(!appCheckReady||pantry.length===0||aiBusy)return;setAiBusy(true);setAiError('');setAiResult('');try{const call=httpsCallable<{ingredients:string[]},{suggestion:string;disclaimer:string}>(functions,'suggestPantrySnacks');const response=await call({ingredients:pantry.slice(0,20)});setAiResult(response.data.suggestion+'\\n\\n'+response.data.disclaimer);}catch(error){console.error('AI pantry ideas',error);const code=typeof error==='object'&&error!==null&&'code' in error?String(error.code):'unknown';const details=typeof error==='object'&&error!==null&&'message' in error?String(error.message):'Request failed';setAiError('AI request failed ('+code+'): '+details+'. Your standard recipe matches still work.');}finally{setAiBusy(false);}}
 
 const picks=dailyPicks(profile);
 const controls=<>{failure&&<div role="alert" className="alert">{failure}</div>}{message&&<div role="status" className="notice">{message}</div>}</>;
