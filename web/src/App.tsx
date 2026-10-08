@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react';
 import {onAuthStateChanged,signInWithPopup,signOut,type User} from 'firebase/auth';
-import {addDoc,collection,doc,getDoc,getDocs,serverTimestamp,setDoc,query,where,orderBy,limit,Timestamp} from 'firebase/firestore';
+import {addDoc,collection,doc,getDoc,serverTimestamp,setDoc} from 'firebase/firestore';
 import {auth,db,googleProvider,functions,appCheckReady} from './firebase';
 import {httpsCallable} from 'firebase/functions';
 
@@ -36,11 +36,15 @@ const RECIPES:Recipe[]=[
 {id:"corn-sandwich",name:"Corn Sandwich",minutes:15,tag:"Comforting bite",emoji:"🥪",ingredients:["Bread","Sweet corn","Cheese","Pepper"],steps:["Mix cooked corn with grated cheese and pepper.","Fill bread slices.","Toast until golden."],diet:"vegetarian",allergens:["Wheat","Milk"]}
 ];
 const ALLERGENS=['Milk','Wheat','Peanuts','Egg','Soy','Tree nuts'];
-const historyCutoff=(days:number)=>Timestamp.fromDate(new Date(Date.now()-days*86400000));
-const recentHistoryQuery=(uid:string,days=7)=>query(collection(db,'users',uid,'history'),where('madeAt','>=',historyCutoff(days)),orderBy('madeAt','desc'));
-const previousHistoryQuery=(uid:string)=>query(collection(db,'users',uid,'history'),where('madeAt','>=',historyCutoff(14)),where('madeAt','<',historyCutoff(7)),orderBy('madeAt','desc'));
-const toHistoryEntry=(d:{id:string;data:()=>Record<string,any>}):HistoryEntry=>({id:d.id,recipeId:String(d.data().recipeId),dishName:String(d.data().dishName),date:d.data().madeAt?.toDate?.()?.toLocaleDateString()??'Recently',dateKey:d.data().madeAt?.toDate?.()?dayKey(d.data().madeAt.toDate()):undefined,aiRecipe:d.data().aiRecipe as AiRecipe|undefined});
-const favoriteQuery=(uid:string,count:number)=>query(collection(db,'users',uid,'favorites'),orderBy('createdAt','desc'),limit(count));
+type SavedResponse={favorites:string[];history:{id:string;recipeId:string;dishName:string;madeAt:number|null;aiRecipe?:AiRecipe|null}[]};
+const savedItems=async(kind:'history'|'favorites',page:'recent'|'previous'='recent',count=5)=>{
+ const call=httpsCallable<{kind:string;page:string;count:number},SavedResponse>(functions,'getSavedItems');
+ return (await call({kind,page,count})).data;
+};
+const toHistoryEntry=(d:SavedResponse['history'][number]):HistoryEntry=>{
+ const date=d.madeAt?new Date(d.madeAt):null;
+ return {id:d.id,recipeId:d.recipeId,dishName:d.dishName,date:date?.toLocaleDateString()??'Recently',dateKey:date?dayKey(date):undefined,aiRecipe:d.aiRecipe??undefined};
+};
 const DEFAULT_PROFILE:Profile={adults:2,children:0,diet:'vegetarian',allergies:[],minutes:20};
 
 /** Return a readable message while retaining the original error in the console. */
@@ -82,7 +86,7 @@ const [aiBusy,setAiBusy]=useState(false),[aiRecipes,setAiRecipes]=useState<AiRec
 /** Restore Google session and fetch the user's profile without trapping the loading screen. */
 useEffect(()=>{const unsubscribe=onAuthStateChanged(auth,async next=>{setBusy(true);setFailure('');setUser(next);try{if(next){setHistory([]);setFavorites([]);const accessCall=httpsCallable<undefined,Access>(functions,'getAccessStatus');
 const status=(await accessCall()).data;setAccess(status);
-const snapshot=await getDoc(doc(db,'users',next.uid));if(snapshot.exists()){const d=snapshot.data();setProfile({adults:d.household?.adults??2,children:d.household?.children??0,diet:d.diet??'vegetarian',allergies:d.allergies??[],minutes:d.preferredMinutes??20});setOnboarded(Boolean(d.onboardingCompleted));const [historyDocs,favoriteDocs]=await Promise.all([getDocs(recentHistoryQuery(next.uid,Math.min(status.historyDays,7))),status.favoritesEnabled?getDocs(favoriteQuery(next.uid,5)):Promise.resolve(null)]);setHistory(historyDocs.docs.map(toHistoryEntry));setFavorites(favoriteDocs?.docs.map(f=>f.id)??[]);}else setOnboarded(false);}else{setAccess(FREE_ACCESS);setOnboarded(false);setHistory([]);setFavorites([]);}}catch(error){console.error('Profile loading',error);setFailure(errorText(error));setOnboarded(false);}finally{setBusy(false);}});return unsubscribe;},[]);
+const snapshot=await getDoc(doc(db,'users',next.uid));if(snapshot.exists()){const d=snapshot.data();setProfile({adults:d.household?.adults??2,children:d.household?.children??0,diet:d.diet??'vegetarian',allergies:d.allergies??[],minutes:d.preferredMinutes??20});setOnboarded(Boolean(d.onboardingCompleted));const [historyDocs,favoriteDocs]=await Promise.all([savedItems('history'),status.favoritesEnabled?savedItems('favorites'):Promise.resolve(null)]);setHistory(historyDocs.history.map(toHistoryEntry));setFavorites(favoriteDocs?.favorites??[]);}else setOnboarded(false);}else{setAccess(FREE_ACCESS);setOnboarded(false);setHistory([]);setFavorites([]);}}catch(error){console.error('Profile loading',error);setFailure(errorText(error));setOnboarded(false);}finally{setBusy(false);}});return unsubscribe;},[]);
 
 /** Sign in with Google and expose popup failures to the user. */
 async function login(){setFailure('');setBusy(true);try{await signInWithPopup(auth,googleProvider);}catch(error){console.error('Sign-in',error);setFailure(errorText(error));setBusy(false);}}
@@ -91,15 +95,18 @@ async function login(){setFailure('');setBusy(true);try{await signInWithPopup(au
 async function saveProfile(){if(!user)return;setSaving(true);setFailure('');try{await setDoc(doc(db,'users',user.uid),{uid:user.uid,displayName:user.displayName,email:user.email,photoURL:user.photoURL,household:{adults:profile.adults,children:profile.children},diet:profile.diet,allergies:profile.allergies,preferredMinutes:profile.minutes,onboardingCompleted:true,updatedAt:serverTimestamp()},{merge:true});setOnboarded(true);setStep(0);setMessage('Your preferences are saved.');}catch(error){console.error('Save profile',error);setFailure(errorText(error));}finally{setSaving(false);}}
 
 /** Load real history and favorites for the current signed-in user. */
-async function loadLists(){if(!user)return;setFailure('');try{const [h,f]=await Promise.all([getDocs(recentHistoryQuery(user.uid,Math.min(access.historyDays,7))),access.favoritesEnabled?getDocs(favoriteQuery(user.uid,5)):Promise.resolve(null)]);setHistory(h.docs.map(toHistoryEntry));setFavorites(f?.docs.map(d=>d.id)??[]);}catch(error){console.error('Load saved items',error);setFailure(errorText(error));}}
+async function loadLists(){if(!user)return;setFailure('');try{
+ const [h,f]=await Promise.all([savedItems('history'),access.favoritesEnabled?savedItems('favorites'):Promise.resolve(null)]);
+ setHistory(h.history.map(toHistoryEntry));setFavorites(f?.favorites??[]);
+ }catch(error){console.error('Load saved items',error);setFailure(errorText(error));}}
 
 /** Fetch only days 8–14 when the user explicitly asks; keep older data in Firestore. */
 async function loadPreviousHistory(){
  if(!user||access.historyDays<=7||loadingOlderHistory||showOlderHistory)return;
  setLoadingOlderHistory(true);setFailure('');
  try{
-  const previous=await getDocs(previousHistoryQuery(user.uid));
-  setHistory(current=>[...new Map([...current,...previous.docs.map(toHistoryEntry)].map(entry=>[entry.id,entry])).values()].sort((a,b)=>(b.dateKey??'').localeCompare(a.dateKey??'')));
+  const previous=await savedItems('history','previous');
+  setHistory(current=>[...new Map([...current,...previous.history.map(toHistoryEntry)].map(entry=>[entry.id,entry])).values()].sort((a,b)=>(b.dateKey??'').localeCompare(a.dateKey??'')));
   setShowOlderHistory(true);
  }catch(error){console.error('Previous history',error);setFailure(errorText(error));}
  finally{setLoadingOlderHistory(false);}
@@ -195,6 +202,6 @@ page==='Plans'?<section className="content plans-page"><span className="eyebrow"
 ['Stored history & favorites','Preserved','Preserved','Preserved'],
 ['Diet & household preferences','Included','Included','Included']
 ].map(([feature,trial,paid,free])=><tr key={feature}><th scope="row">{feature}</th><td>{trial}</td><td>{paid}</td><td>{free}</td></tr>)}</tbody></table></div></div><div className="surface"><h2>Upgrade to Premium</h2><p>₹249/month or ₹1,999/year. Premium payment activation is coming soon.</p><button className="primary" disabled aria-label="Premium checkout coming soon">Upgrade to Premium — Coming soon</button><p className="muted">Your saved history and favorites will remain in your account even if your plan expires.</p></div></section>:
-page==='Favorites'?<section className="content"><span className="eyebrow">SAVED FOR LATER</span><h1>Your favorites.</h1>{!access.favoritesEnabled?<div className="surface empty"><h2>Your favorites are safely saved.</h2><p>Restore access with Premium. Purchasing is coming soon.</p><button className="secondary" onClick={()=>navigate('Plans')}>View plans</button></div>:<><p className="muted">Save up to 10 recipes. Showing {favorites.length}.</p>{favorites.length?<div className="recipecards">{RECIPES.filter(r=>favorites.includes(r.id)).sort((a,b)=>favorites.indexOf(a.id)-favorites.indexOf(b.id)).map(r=><article className="recipecard" key={r.id}><div className="foodart"><span>{r.emoji}</span></div><div className="cardbody"><h3>{r.name}</h3><p>{r.minutes} min</p><button className="view" onClick={()=>setRecipe(r)}>View recipe →</button></div></article>)}</div>:<div className="surface empty">♡<h2>Keep your favourites close.</h2><p>Tap the heart on any recipe to save it here.</p></div>}{!showMoreFavorites&&favorites.length===5&&<button className="secondary" onClick={async()=>{if(!user)return;try{const more=await getDocs(favoriteQuery(user.uid,10));setFavorites(more.docs.map(d=>d.id));setShowMoreFavorites(true);}catch(e){setFailure(errorText(e));}}}>Load more favorites</button>}</>}</section>:
+page==='Favorites'?<section className="content"><span className="eyebrow">SAVED FOR LATER</span><h1>Your favorites.</h1>{!access.favoritesEnabled?<div className="surface empty"><h2>Your favorites are safely saved.</h2><p>Restore access with Premium. Purchasing is coming soon.</p><button className="secondary" onClick={()=>navigate('Plans')}>View plans</button></div>:<><p className="muted">Save up to 10 recipes. Showing {favorites.length}.</p>{favorites.length?<div className="recipecards">{RECIPES.filter(r=>favorites.includes(r.id)).sort((a,b)=>favorites.indexOf(a.id)-favorites.indexOf(b.id)).map(r=><article className="recipecard" key={r.id}><div className="foodart"><span>{r.emoji}</span></div><div className="cardbody"><h3>{r.name}</h3><p>{r.minutes} min</p><button className="view" onClick={()=>setRecipe(r)}>View recipe →</button></div></article>)}</div>:<div className="surface empty">♡<h2>Keep your favourites close.</h2><p>Tap the heart on any recipe to save it here.</p></div>}{!showMoreFavorites&&favorites.length===5&&<button className="secondary" onClick={async()=>{if(!user)return;try{const more=await savedItems('favorites','recent',10);setFavorites(more.favorites);setShowMoreFavorites(true);}catch(e){setFailure(errorText(e));}}}>Load more favorites</button>}</>}</section>:
 <section className="content"><span className="eyebrow">YOUR ACCOUNT</span><h1>My profile.</h1><div className="surface identity">{user.photoURL&&<img src={user.photoURL} alt="Profile"/>}<div><strong>{user.displayName}</strong><p>{user.email}</p><small>Google account connected</small></div></div><div className="surface"><h2>Household & food preferences</h2>{preferences}<div className="actions"><button className="primary" disabled={saving} onClick={()=>void saveProfile()}>{saving?'Saving…':'Save changes'}</button></div></div><div className="surface"><h2>Plan & account</h2><p>Plan: {access.tier==='trial'?'30-day trial':access.tier==='paid'?'Premium':'Free'} · {access.aiDailyLimit} AI requests per day. Premium billing is not yet enabled. <button className="secondary" onClick={()=>navigate('Plans')}>Compare plans & upgrade →</button></p><button className="secondary" onClick={async()=>{try{await signOut(auth);}catch(error){setFailure(errorText(error));}}}>Sign out</button></div></section>}{sharedFooter}</main><nav className="mobiletabs">{(['Home','Pantry','History','Favorites','Profile'] as Page[]).map(p=><button key={p} className={page===p?'active':''} onClick={()=>navigate(p)}><span>{p==='Home'?'🏠':p==='Pantry'?'🧺':p==='History'?'🕘':p==='Favorites'?'💚':'⚙️'}</span>{p}</button>)}</nav></div>;
 }
