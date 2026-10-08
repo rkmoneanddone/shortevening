@@ -185,14 +185,15 @@ exports.suggestPantrySnacks = onCall({
     if (!openAIKey.value()) throw new HttpsError('failed-precondition', 'AI is not configured.');
     const { aiDailyLimit: dailyLimit } = await resolveAccess(request.auth.uid);
     const key = cacheKey(ingredients, preferences);
-    const cached = await getFirestore().doc('aiRecipeCache/' + key).get();
-    if (cached.exists && cached.get('expiresAt')?.toMillis?.() > Date.now()) {
-      return { recipes: cached.get('recipes'), cached: true,
-        disclaimer: 'Check all ingredients and allergen labels before cooking.' };
-    }
     const quotaRef = await reserveQuota(request.auth.uid, dailyLimit);
     const started = Date.now();
     try {
+      const cached = await getFirestore().doc('aiRecipeCache/' + key).get();
+      if (cached.exists && cached.get('expiresAt')?.toMillis?.() > Date.now()) {
+        console.info('AI cache hit latency ms', Date.now() - started);
+        return { recipes: cached.get('recipes'), cached: true,
+          disclaimer: 'Check all ingredients and allergen labels before cooking.' };
+      }
       const generated = await generateIdeas(openAIKey.value(), ingredients, preferences);
       const recipes = validateIdeas(generated, ingredients, preferences);
       if (!recipes.length) throw new Error('No safe matching recipes returned');
