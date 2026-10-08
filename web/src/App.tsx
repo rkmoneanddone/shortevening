@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react';
 import {onAuthStateChanged,signInWithPopup,signOut,type User} from 'firebase/auth';
-import {addDoc,collection,deleteDoc,doc,getDoc,getDocs,serverTimestamp,setDoc,query,where,orderBy,limit,Timestamp} from 'firebase/firestore';
+import {addDoc,collection,doc,getDoc,getDocs,serverTimestamp,setDoc,query,where,orderBy,limit,Timestamp} from 'firebase/firestore';
 import {auth,db,googleProvider,functions,appCheckReady} from './firebase';
 import {httpsCallable} from 'firebase/functions';
 
@@ -79,7 +79,20 @@ async function loadLists(){if(!user)return;setFailure('');try{const [h,f]=await 
 function navigate(next:Page){if(next==='History')setShowOlderHistory(false);if(next==='Favorites')setShowMoreFavorites(false);setMenuOpen(false);setPage(next);setRecipe(null);setSelectedAiRecipe(null);setMessage('');setFailure('');if(next==='History'||(next==='Favorites'&&access.favoritesEnabled))void loadLists();}
 
 /** Save or remove a recipe from the user's favorites collection. */
-async function toggleFavorite(item:Recipe){if(!user)return;if(!access.favoritesEnabled){setFailure('Favorites are available during your trial and with Premium. Your saved recipes are safe.');return;}setSaving(true);setFailure('');try{const ref=doc(db,'users',user.uid,'favorites',item.id);if(favorites.includes(item.id)){await deleteDoc(ref);setFavorites(old=>old.filter(x=>x!==item.id));}else{const existing=await getDocs(favoriteQuery(user.uid,11));if(existing.size>=10){setFailure('You can save up to 10 favorites. Remove one to make room.');return;}await setDoc(ref,{recipeId:item.id,createdAt:serverTimestamp()});setFavorites(old=>[item.id,...old]);}}catch(error){console.error('Favorite',error);setFailure(errorText(error));}finally{setSaving(false);}}
+async function toggleFavorite(item:Recipe){
+ if(!user||saving)return;
+ if(!access.favoritesEnabled){setFailure('Favorites are available during your trial and with Premium. Your saved recipes are safe.');return;}
+ setSaving(true);setFailure('');
+ try{
+  const operation=favorites.includes(item.id)?'remove':'add';
+  const call=httpsCallable<{recipeId:string;operation:'add'|'remove'},{ok:boolean}>(functions,'updateFavorite');
+  await call({recipeId:item.id,operation});
+  if(operation==='remove')setFavorites(old=>old.filter(x=>x!==item.id));
+  else setFavorites(old=>[item.id,...old].slice(0,10));
+  await loadLists();
+ }catch(error){console.error('Favorite',error);setFailure(errorText(error));}
+ finally{setSaving(false);}
+}
 
 /** Record one completed dish, with an explicit confirmation and disabled submit state. */
 async function madeToday(item:Recipe){if(!user||saving)return;if(history.some(h=>h.recipeId===item.id&&h.dateKey===dayKey(new Date()))){setMessage(item.name+' was already marked Made Today.');return;}setSaving(true);setFailure('');try{await addDoc(collection(db,'users',user.uid,'history'),{recipeId:item.id,dishFamily:item.id,dishName:item.name,madeAt:serverTimestamp()});setMessage(item.name+' added to your history.');setHistory(old=>[{id:'pending-'+Date.now(),recipeId:item.id,dishName:item.name,date:new Date().toLocaleDateString(),dateKey:dayKey(new Date())},...old]);await loadLists();}catch(error){console.error('Made Today',error);setFailure(errorText(error));}finally{setSaving(false);}}
