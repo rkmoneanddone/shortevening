@@ -255,3 +255,32 @@ p,.intro p,.authpanel>p,.landing-copy p,.landing-lead{font-size:14px!important;l
  .landing-visual{min-height:320px}
  .landing-visual strong{font-size:24px}
 }
+
+/* Typography mandate: regular weight everywhere, regardless of older rules. */
+html body,html body *{font-weight:400!important}
+.navlinks button{display:flex;align-items:center;gap:12px}
+.nav-icon{display:inline-grid;place-items:center;width:29px;height:29px;flex:0 0 29px;border-radius:9px;background:#e8f3e7;font-size:17px}
+.navlinks button:nth-child(2) .nav-icon{background:#fff0d9}
+.navlinks button:nth-child(3) .nav-icon{background:#e8efff}
+.navlinks button:nth-child(4) .nav-icon{background:#ffe9ed}
+.navlinks button:nth-child(5) .nav-icon{background:#ede8fa}
+.mobiletabs button span{font-size:20px}
+.site-footer,.footer-links a,.footer-links button{font-size:14px!important}
+.footer-credit{font-size:13px!important}
+.footer-love{font-size:13px!important}
+@media(min-width:951px){
+ .landing-panel{height:auto;min-height:550px;max-height:none}
+ .authscreen:has(.landing-panel){height:auto;min-height:100dvh;overflow:visible}
+ .landing-copy h1{font-size:43px!important}
+ .landing-copy>p{font-size:16px!important}
+}
+@media(max-width:950px){
+ .authscreen:has(.landing-panel){height:auto;min-height:100dvh;overflow:visible}
+ .landing-panel{height:auto;min-height:calc(100dvh - 16px);overflow:visible}
+}
+@media(max-width:680px){
+ .landing-panel{align-content:center}
+ .site-footer,.footer-links a,.footer-links button{font-size:13px!important}
+ .footer-credit{font-size:12px!important}
+ .footer-love{font-size:13px!important}
+}
