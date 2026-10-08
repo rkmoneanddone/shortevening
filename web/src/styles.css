@@ -214,3 +214,7 @@ p,.intro p,.authpanel>p,.landing-copy p,.landing-lead{font-size:14px!important;l
  .landing-visual-emoji{font-size:25px}
  .landing-assurance{font-size:9px!important}
 }
+
+
+.landing-legal{display:flex;gap:15px;margin-top:7px}.landing-legal button{border:0;background:transparent;padding:2px 0;color:#577562;font-size:11px;cursor:pointer}.landing-legal button:hover{text-decoration:underline}
+.public-legal{min-height:100dvh;background:#f4f8f1;padding:clamp(18px,4vw,45px)}.public-legal>.back{margin:0 auto 16px;display:block;max-width:720px}.public-legal>.surface{max-width:720px;margin:0 auto;padding:clamp(22px,4vw,40px)}
