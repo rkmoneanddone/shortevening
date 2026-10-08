@@ -101,6 +101,38 @@ function validateIdeas(recipes, ingredients, preferences) {
   });
 }
 
+/** History and favorites are served only after server-side entitlement checks.
+ * Never expose these collections directly through Firestore rules. */
+exports.getSavedItems = onCall({ region: 'asia-south1', enforceAppCheck: true }, async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const uid = request.auth.uid, access = await resolveAccess(uid);
+  const kind = request.data?.kind, page = request.data?.page || 'recent';
+  const db = getFirestore();
+  if (kind === 'favorites') {
+    if (!access.favoritesEnabled) return { favorites: [], history: [] };
+    const count = request.data?.count === 10 ? 10 : 5;
+    const snapshot = await db.collection('users/' + uid + '/favorites')
+      .orderBy('createdAt', 'desc').limit(count).get();
+    return { favorites: snapshot.docs.map(d => d.id), history: [] };
+  }
+  if (kind !== 'history' || !['recent', 'previous'].includes(page))
+    throw new HttpsError('invalid-argument', 'Invalid saved items request.');
+  if (page === 'previous' && access.historyDays <= 7)
+    throw new HttpsError('permission-denied', 'Older history requires a trial or Premium.');
+  const { Timestamp } = require('firebase-admin/firestore');
+  const now = Date.now(), day = 86400000;
+  const days = access.historyDays === 1 ? 1 : 7;
+  let q = db.collection('users/' + uid + '/history')
+    .where('madeAt', '>=', Timestamp.fromMillis(now - (page === 'previous' ? 14 : days) * day));
+  if (page === 'previous') q = q.where('madeAt', '<', Timestamp.fromMillis(now - 7 * day));
+  const snapshot = await q.orderBy('madeAt', 'desc').get();
+  return { favorites: [], history: snapshot.docs.map(d => {
+    const data = d.data();
+    return { id: d.id, recipeId: data.recipeId, dishName: data.dishName,
+      madeAt: data.madeAt?.toMillis?.() || null, aiRecipe: data.aiRecipe || null };
+  }) };
+});
+
 /** Atomic server-controlled favorite operations; payment logic is separate. */
 exports.updateFavorite = onCall({ region: 'asia-south1', enforceAppCheck: true }, async request => {
   if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
