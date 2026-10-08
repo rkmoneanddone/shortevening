@@ -2,7 +2,7 @@ import {initializeApp} from 'firebase/app';
 import {getAuth,GoogleAuthProvider} from 'firebase/auth';
 import {getFirestore} from 'firebase/firestore';
 import {getFunctions} from 'firebase/functions';
-import {initializeAppCheck,ReCaptchaV3Provider} from 'firebase/app-check';
+import {initializeAppCheck,ReCaptchaEnterpriseProvider} from 'firebase/app-check';
 
 const config = {
   apiKey: 'AIzaSyDK1rQLItZOBsI61BKrU-Ifg3TXVy-1eFY',
@@ -26,7 +26,7 @@ const recaptchaSiteKey=import.meta.env.VITE_RECAPTCHA_SITE_KEY;
 export const appCheckReady=Boolean(recaptchaSiteKey);
 if(recaptchaSiteKey){
   initializeAppCheck(firebaseApp,{
-    provider:new ReCaptchaV3Provider(recaptchaSiteKey),
+    provider:new ReCaptchaEnterpriseProvider(recaptchaSiteKey),
     isTokenAutoRefreshEnabled:true
   });
 }
