@@ -52,18 +52,29 @@ async function generateIdeas(key, ingredients, preferences) {
       headers: { Authorization: 'Bearer ' + key, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: 'gpt-4.1-mini',
-        max_output_tokens: 700,
+        max_output_tokens: 1100,
+        text: { format: { type: 'json_object' } },
         input: [
-          { role: 'system', content: 'Suggest at most three easy Indian evening snacks using available ingredients. Respect stated diet and avoid listed allergens. Include missing ingredients and brief preparation steps. Never promise allergen safety. Return plain text.' },
+          { role: 'system', content: 'Return ONLY JSON object with recipes array of 1 to 3 easy Indian evening snacks. Each recipe: name (string), minutes (integer), ingredients (array of ingredient strings), steps (array of short strings), missingIngredients (array of strings not in pantry). Prefer using pantry ingredients. Respect diet and avoid allergens listed. Do not promise allergy safety. Do not include other fields.' },
           { role: 'user', content: JSON.stringify({ ingredients, preferences }) }
         ]
       })
     });
     if (!response.ok) throw new Error('OpenAI request failed: ' + response.status);
     const body = await response.json();
-    return (body.output || []).flatMap(item => item.content || [])
-      .filter(part => part.type === 'output_text')
-      .map(part => part.text).join('\n').slice(0, 5000);
+    const raw = (body.output || []).flatMap(item => item.content || [])
+      .filter(part => part.type === 'output_text').map(part => part.text).join('');
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed.recipes)) throw new Error('Invalid recipe payload');
+    const recipes = parsed.recipes.slice(0, 3).map(item => ({
+      name: String(item.name || '').slice(0, 90),
+      minutes: Number(item.minutes) || 20,
+      ingredients: Array.isArray(item.ingredients) ? item.ingredients.slice(0, 18).map(x => String(x).slice(0, 100)) : [],
+      steps: Array.isArray(item.steps) ? item.steps.slice(0, 10).map(x => String(x).slice(0, 300)) : [],
+      missingIngredients: Array.isArray(item.missingIngredients) ? item.missingIngredients.slice(0, 18).map(x => String(x).slice(0, 100)) : []
+    })).filter(item => item.name && item.ingredients.length && item.steps.length);
+    if (!recipes.length) throw new Error('No usable recipes returned');
+    return recipes;
   } finally {
     clearTimeout(timeout);
   }
@@ -80,10 +91,9 @@ exports.suggestPantrySnacks = onCall({
     const preferences = await readPreferences(request.auth.uid);
     if (!openAIKey.value()) throw new HttpsError('failed-precondition', 'AI is not configured.');
     await takeQuota(request.auth.uid);
-    const suggestion = await generateIdeas(openAIKey.value(), ingredients, preferences);
-    if (!suggestion) throw new HttpsError('unavailable', 'No suggestions returned.');
+    const recipes = await generateIdeas(openAIKey.value(), ingredients, preferences);
     return {
-      suggestion,
+      recipes,
       disclaimer: 'AI suggestions may be inaccurate. Verify every ingredient and allergen label.'
     };
   } catch (error) {
