@@ -70,3 +70,17 @@ button:focus-visible{outline:3px solid #d49b63;outline-offset:3px}
  .ai-main-cta{width:100%;font-size:17px}.ai-snack-grid{grid-template-columns:1fr}
  .ai-recipe-heading>span{font-size:42px}.ai-recipe-detail{padding:17px}
 }
+
+
+/* Responsive navigation: show the full five-item feature bar on phones and tablets. */
+@media(max-width:950px){
+ .sidebar{display:none!important}
+ .workspace{width:100%;min-width:0}
+ .topbar{height:68px;justify-content:space-between;padding:0 18px}
+ .mobilebrand{display:block!important}
+ .mobiletabs{display:flex!important;position:fixed;left:0;right:0;bottom:0;z-index:1000;background:#fff;border-top:1px solid #dfe8dd;box-shadow:0 -5px 25px #2433291b;justify-content:space-around;padding:9px 3px calc(10px + env(safe-area-inset-bottom))}
+ .mobiletabs button{display:flex;flex:1;flex-direction:column;align-items:center;gap:4px;min-width:0;border:0;background:transparent;color:#607164;font-size:clamp(10px,1.7vw,13px);padding:7px 1px}
+ .mobiletabs button span{font-size:24px}
+ .mobiletabs button.active{color:#1d7541;font-weight:850}
+ .content{padding-bottom:calc(140px + env(safe-area-inset-bottom))}
+}
