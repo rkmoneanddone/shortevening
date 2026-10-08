@@ -409,3 +409,5 @@ html body,html body *{font-weight:400!important}
 .recipehero .recipe-photo-wrap{position:relative;display:inline-flex;flex:0 0 115px;width:115px;height:95px;border-radius:12px;overflow:hidden}
 .recipehero .recipe-photo{width:100%;height:100%;object-fit:cover}
 .recipehero .photo-credit{position:absolute;bottom:0;left:0;right:0;background:rgba(255,255,255,.9);font-size:9px;padding:2px;text-align:center;color:#30422d}
+
+.foodart span.recipe-photo-wrap,.recipehero span.recipe-photo-wrap{font-size:inherit}
