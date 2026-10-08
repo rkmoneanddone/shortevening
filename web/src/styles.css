@@ -46,3 +46,27 @@ button:focus-visible{outline:3px solid #d49b63;outline-offset:3px}
 
 /* AI suggestions preserve whitespace and remain secondary to deterministic recipe matches. */
 .aiideas{margin:20px 0}.aiideas h3{margin:0 0 8px}.airesponse{white-space:pre-wrap;line-height:1.75;margin-top:18px;padding:18px;border-radius:14px;background:#f1f7ee;overflow-wrap:anywhere}
+
+
+/* Pantry: one obvious action, compact suggestion choices, detail on demand. */
+.pantry-page>.muted{max-width:720px}.pantry-page .pantryform{margin-bottom:6px}
+.ai-main-cta{display:block;width:min(100%,580px);min-height:62px;font-size:19px;margin:20px 0 28px;box-shadow:0 9px 22px #2f75492e}
+.ai-results{margin-top:25px}.ai-snack-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:13px}
+.ai-snack-option{display:flex;align-items:center;gap:13px;text-align:left;background:#fff;border:2px solid #e4ecdf;border-radius:17px;padding:18px;color:#20392a;min-height:96px}
+.ai-snack-option:hover,.ai-snack-option.selected{border-color:#2f7549;background:#f0f7ed}
+.ai-snack-option>span:nth-child(2){flex:1}.ai-snack-option strong{display:block;font-size:19px}.ai-snack-option small{display:block;color:#718074;font-size:13px;margin-top:6px}
+.ai-snack-icon{font-size:29px;background:#edf5e8;padding:12px;border-radius:12px}
+.ai-recipe-detail{margin-top:22px}.ai-recipe-heading{display:flex;align-items:center;gap:16px;background:#f0f5ea;border-radius:16px;padding:15px;margin:15px 0}
+.ai-recipe-heading>span{font-size:54px}.ai-recipe-heading h2{margin:0}.ai-recipe-detail li{margin-bottom:6px}.catalog-toggle{margin:32px 0 18px}
+/* Mobile bottom navigation must override all earlier desktop refinements. */
+@media(max-width:680px){
+ .sidebar{display:none!important}
+ .topbar{height:68px;justify-content:space-between}
+ .mobilebrand{display:block}
+ .content{padding-bottom:calc(125px + env(safe-area-inset-bottom))}
+ .mobiletabs{display:flex!important;position:fixed;bottom:0;left:0;right:0;width:100%;z-index:1000;background:#fff;box-shadow:0 -7px 25px #263a2717;border-top:1px solid #e4ecdf;padding:10px 4px calc(10px + env(safe-area-inset-bottom));gap:0}
+ .mobiletabs button{flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;padding:7px 1px;border:0;background:none;font-size:11px;color:#6b776c}
+ .mobiletabs button span{font-size:23px}.mobiletabs button.active{color:#23663c;font-weight:850}
+ .ai-main-cta{width:100%;font-size:17px}.ai-snack-grid{grid-template-columns:1fr}
+ .ai-recipe-heading>span{font-size:42px}.ai-recipe-detail{padding:17px}
+}
