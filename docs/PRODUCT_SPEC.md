@@ -1,29 +1,30 @@
-# SortEvening V1 Product Specification
+# SortEvening — Current Product Rules (October 2026)
 
-## Promise
-Three relevant evening snack ideas, remembered family history, and no repeats during the previous 7 days for Premium users.
+## Access tiers (server-authoritative)
 
-## Current commercial rules
-- 30-day full Premium trial.
-- Premium purchasable from Day 1; soft promotion initially, stronger in final 7 days.
-- After trial, no hard block.
-- Free: exactly 3 basic ideas/day + basic instructions.
-- Free: no notification, history, Made Today, no-repeat personalization, refresh, ingredient recommendations, AI custom requests, favorites, or advanced filters.
-- Existing history/preferences remain stored after downgrade and return after Premium activation.
-- Premium: ₹249/month or ₹1,999/year.
-- Razorpay is the payment gateway.
+| Feature | First 30 days (Trial) | Active Premium | Free after trial / expired subscription |
+| --- | --- | --- | --- |
+| AI snack requests | 5 per UTC day | 5 per UTC day | 2 per UTC day |
+| History shown | 7 days initially, previous 7 on request | Same | 1 day only |
+| Favorites | Up to 10; first 5 loaded | Same | Hidden; existing data preserved |
+| Daily default picks | Rotate each day | Rotate each day | Same picks each day, subject to dietary preferences |
+| Older records | Retained in Firestore | Retained in Firestore | Retained in Firestore, not deleted |
+
+Trial starts from Firebase Authentication account creation and expires after 30 × 24 hours. Active paid entitlement takes precedence over trial. After payment expiration the user returns to Free unless still within the initial 30-day trial. Entitlement is stored at `users/{uid}/entitlements/ai` with `plan: 'paid'`, `status: 'active'`, and optional Firestore Timestamp `expiresAt`. Clients must never set entitlement values. The future payment webhook will manage this record; payment integration is intentionally excluded from this milestone.
+
+The backend callable `getAccessStatus` resolves the effective tier; `suggestPantrySnacks` enforces daily quotas server-side. UI feature restrictions are currently display-side and need corresponding backend security hardening before launch, especially the favorites count and preventing direct Firestore access to hidden records. Daily free picks are deterministic for each profile; dietary preference changes may change them.
+
+## Product and release backlog
+
+- Verify build, Firestore indexes, end-to-end auth and functions on deployed web.
+- Fix AI error quota accounting and add server-side response caching.
+- Add server-side allergen and ingredient validation, expand recipes and reliable dish photography.
+- Enforce favorite limit atomically on the backend; restrict free-tier history and favorites reads at security rules/backend layer.
+- Implement reliable history pagination beyond current 100-document cap and add automated tests.
+- Add admin reporting (retaining existing history without duplicating full records), observability, budgets and rate limiting.
+- Complete native Android application, Google Sign-In configuration, and device testing — deferred.
+- Implement Razorpay, webhooks, billing and subscription renewal — deferred.
+- iOS comes after Android.
 
 ## Technology
-- React Native CLI + TypeScript; Android first.
-- Firebase Auth, Firestore, Cloud Functions, FCM, Analytics, Crashlytics/App Check as appropriate.
-- OpenAI and/or Gemini only through secure backend endpoints.
-- Normal daily suggestions must not require AI.
-
-## Core V1 flow
-Google login → family onboarding → 3 suggestions → recipe → Made Today → 7-day/dish-family exclusion → return next evening.
-
-## Security
-Users can access only their own private data. Clients cannot grant Premium. Razorpay and AI secrets remain server-side. Payment entitlement is backend-authoritative.
-
-## Name
-SortEvening is a working name and must remain centrally configurable.
+React + TypeScript + Vite web, React Native CLI Android foundation, Firebase Auth/Firestore/Functions, server-side OpenAI. Normal daily picks do not require AI.
