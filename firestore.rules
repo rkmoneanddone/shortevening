@@ -73,8 +73,7 @@ service cloud.firestore {
 
       match /favorites/{recipeId} {
         allow get, list: if owner(userId);
-        allow create: if owner(userId) && validFavorite(request.resource.data, recipeId);
-        allow delete: if owner(userId);
+        allow create, delete: if false; // Server callable enforces plan and 10-item cap.
         allow update: if false;
       }
 
