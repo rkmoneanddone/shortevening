@@ -29,12 +29,23 @@ service cloud.firestore {
       && data.onboardingCompleted is bool;
     }
 
+    function validSavedAiRecipe(data) {
+      return data is map
+        && data.keys().hasOnly(['name', 'minutes', 'ingredients', 'steps', 'missingIngredients'])
+        && data.name is string && data.name.size() <= 90
+        && data.minutes is number && data.minutes > 0 && data.minutes <= 180
+        && data.ingredients is list && data.ingredients.size() <= 18
+        && data.steps is list && data.steps.size() <= 10
+        && data.missingIngredients is list && data.missingIngredients.size() <= 18;
+    }
+
     function validHistory(data) {
-      return data.keys().hasOnly(['recipeId', 'dishFamily', 'dishName', 'madeAt', 'source'])
+      return data.keys().hasOnly(['recipeId', 'dishFamily', 'dishName', 'madeAt', 'source', 'aiRecipe'])
       && data.recipeId is string && data.recipeId.size() <= 100
       && data.dishFamily is string && data.dishFamily.size() <= 100
       && data.dishName is string && data.dishName.size() <= 150
-      && data.madeAt == request.time;
+      && data.madeAt == request.time
+      && (!('aiRecipe' in data) || (data.get('source', '') == 'ai' && validSavedAiRecipe(data.aiRecipe)));
     }
 
     function validFavorite(data, recipeId) {
