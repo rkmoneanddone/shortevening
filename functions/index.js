@@ -54,17 +54,85 @@ exports.getAccessStatus = onCall({ region: 'asia-south1', enforceAppCheck: true 
   return resolveAccess(request.auth.uid);
 });
 
-/** Atomically enforce the user's daily AI allowance (UTC day). */
-async function takeQuota(uid, limit) {
+/** Quota reservation is released on upstream failures. */
+async function reserveQuota(uid, limit) {
   const day = new Date().toISOString().slice(0, 10);
   const ref = getFirestore().doc('users/' + uid + '/aiUsage/' + day);
-  await getFirestore().runTransaction(async transaction => {
-    const snapshot = await transaction.get(ref);
-    const count = snapshot.exists ? snapshot.get('count') || 0 : 0;
+  await getFirestore().runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    const count = snap.exists ? snap.get('count') || 0 : 0;
     if (count >= limit) throw new HttpsError('resource-exhausted', 'Daily AI limit reached (' + limit + ' requests). Resets at 00:00 UTC.');
-    transaction.set(ref, { count: count + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+    tx.set(ref, { count: count + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
+  });
+  return ref;
+}
+async function releaseQuota(ref) {
+  await getFirestore().runTransaction(async tx => {
+    const snap = await tx.get(ref);
+    if (snap.exists && (snap.get('count') || 0) > 0) tx.update(ref, { count: FieldValue.increment(-1) });
   });
 }
+function cacheKey(ingredients, preferences) {
+  const { createHash } = require('node:crypto');
+  return createHash('sha256').update(JSON.stringify({
+    ingredients: [...ingredients].sort(), diet: preferences.diet,
+    allergies: [...preferences.allergies].sort(), minutes: preferences.minutes
+  })).digest('hex');
+}
+function validateIdeas(recipes, ingredients, preferences) {
+  const blocked = new Set((preferences.allergies || []).map(x => String(x).toLowerCase()));
+  const forbidden = {
+    milk: /\\b(milk|paneer|cheese|butter|curd|yogurt|ghee|cream)\\b/i,
+    wheat: /\\b(wheat|atta|maida|bread|roti|semolina|suji|sooji)\\b/i,
+    peanuts: /\\b(peanut|groundnut)\\b/i,
+    egg: /\\b(egg|anda|omelette)\\b/i,
+    soy: /\\b(soy|soya|tofu)\\b/i,
+    'tree nuts': /\\b(almond|cashew|walnut|pistachio|hazelnut)\\b/i
+  };
+  const pantry = new Set(ingredients.map(x => x.toLowerCase()));
+  return recipes.filter(recipe => {
+    const all = [recipe.name, ...recipe.ingredients].join(' ');
+    if ([...blocked].some(a => forbidden[a]?.test(all))) return false;
+    if (preferences.diet === 'vegetarian' && /\\b(egg|chicken|fish|meat|prawn|mutton|beef|pork)\\b/i.test(all)) return false;
+    if (preferences.diet === 'eggetarian' && /\\b(chicken|fish|meat|prawn|mutton|beef|pork)\\b/i.test(all)) return false;
+    if (recipe.minutes > preferences.minutes || recipe.minutes <= 0) return false;
+    recipe.missingIngredients = recipe.ingredients.filter(x => !pantry.has(x.toLowerCase()));
+    return true;
+  });
+}
+
+/** Atomic server-controlled favorite operations; payment logic is separate. */
+exports.updateFavorite = onCall({ region: 'asia-south1', enforceAppCheck: true }, async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  const uid = request.auth.uid;
+  const access = await resolveAccess(uid);
+  if (!access.favoritesEnabled) throw new HttpsError('permission-denied', 'Favorites require an active trial or Premium.');
+  const recipeId = request.data?.recipeId;
+  const operation = request.data?.operation;
+  if (typeof recipeId !== 'string' || !/^[a-z0-9-]{1,100}$/.test(recipeId) ||
+      !['add','remove'].includes(operation)) throw new HttpsError('invalid-argument', 'Invalid favorite request.');
+  const db = getFirestore(), counterRef = db.doc('users/' + uid + '/system/favoriteCount');
+  const favoriteRef = db.doc('users/' + uid + '/favorites/' + recipeId);
+  await db.runTransaction(async tx => {
+    const [counter, favorite] = await Promise.all([tx.get(counterRef), tx.get(favoriteRef)]);
+    // Existing collections may predate the counter. Bootstrap with a bounded query in the transaction.
+    let count = counter.exists ? counter.get('count') || 0 : null;
+    if (count === null) {
+      const existing = await tx.get(db.collection('users/' + uid + '/favorites').limit(11));
+      count = existing.size;
+    }
+    if (operation === 'add' && !favorite.exists) {
+      if (count >= 10) throw new HttpsError('resource-exhausted', 'Maximum 10 favorites. Remove one first.');
+      tx.create(favoriteRef, { recipeId, createdAt: FieldValue.serverTimestamp() });
+      count += 1;
+    } else if (operation === 'remove' && favorite.exists) {
+      tx.delete(favoriteRef);
+      count = Math.max(0, count - 1);
+    }
+    tx.set(counterRef, { count, updatedAt: FieldValue.serverTimestamp() });
+  });
+  return { ok: true };
+});
 
 /** Invoke OpenAI only from the server and return a short, bounded response. */
 async function generateIdeas(key, ingredients, preferences) {
@@ -116,12 +184,30 @@ exports.suggestPantrySnacks = onCall({
     const preferences = await readPreferences(request.auth.uid);
     if (!openAIKey.value()) throw new HttpsError('failed-precondition', 'AI is not configured.');
     const { aiDailyLimit: dailyLimit } = await resolveAccess(request.auth.uid);
-    await takeQuota(request.auth.uid, dailyLimit);
-    const recipes = await generateIdeas(openAIKey.value(), ingredients, preferences);
-    return {
-      recipes,
-      disclaimer: 'AI suggestions may be inaccurate. Verify every ingredient and allergen label.'
-    };
+    const key = cacheKey(ingredients, preferences);
+    const cached = await getFirestore().doc('aiRecipeCache/' + key).get();
+    if (cached.exists && cached.get('expiresAt')?.toMillis?.() > Date.now()) {
+      return { recipes: cached.get('recipes'), cached: true,
+        disclaimer: 'Check all ingredients and allergen labels before cooking.' };
+    }
+    const quotaRef = await reserveQuota(request.auth.uid, dailyLimit);
+    const started = Date.now();
+    try {
+      const generated = await generateIdeas(openAIKey.value(), ingredients, preferences);
+      const recipes = validateIdeas(generated, ingredients, preferences);
+      if (!recipes.length) throw new Error('No safe matching recipes returned');
+      const { Timestamp } = require('firebase-admin/firestore');
+      await getFirestore().doc('aiRecipeCache/' + key).set({
+        recipes, expiresAt: Timestamp.fromMillis(Date.now() + 24 * 3600000),
+        createdAt: FieldValue.serverTimestamp()
+      }).catch(error => console.warn('Cache write failed', error));
+      console.info('AI latency ms', Date.now() - started, 'recipes', recipes.length);
+      return { recipes, cached: false,
+        disclaimer: 'Check all ingredients and allergen labels before cooking.' };
+    } catch (error) {
+      await releaseQuota(quotaRef).catch(refundError => console.error('Quota refund failed', refundError));
+      throw error;
+    }
   } catch (error) {
     if (error instanceof HttpsError) throw error;
     console.error('Pantry AI request failed', error);
