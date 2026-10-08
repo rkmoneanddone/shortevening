@@ -218,3 +218,40 @@ p,.intro p,.authpanel>p,.landing-copy p,.landing-lead{font-size:14px!important;l
 
 .landing-legal{display:flex;gap:15px;margin-top:7px}.landing-legal button{border:0;background:transparent;padding:2px 0;color:#577562;font-size:11px;cursor:pointer}.landing-legal button:hover{text-decoration:underline}
 .public-legal{min-height:100dvh;background:#f4f8f1;padding:clamp(18px,4vw,45px)}.public-legal>.back{margin:0 auto 16px;display:block;max-width:720px}.public-legal>.surface{max-width:720px;margin:0 auto;padding:clamp(22px,4vw,40px)}
+
+/* Desktop readability pass — preserve the existing visual language and mobile layout. */
+@media(min-width:951px){
+ :root{font-size:15px}
+ .sidebar{width:220px;flex:0 0 220px}
+ .topbar{height:66px}
+ .workspace>.content{width:min(100%,1050px);max-width:1050px;padding:32px 30px 48px}
+ .workspace>.content .intro h1{font-size:38px!important;line-height:1.17}
+ .workspace>.content .intro p{font-size:16px!important;line-height:1.55}
+ .workspace>.content h2,.workspace>.content .sectionheading h2{font-size:23px!important}
+ .workspace>.content .highlight{padding:21px 26px;margin:20px 0 24px}
+ .workspace>.content .highlight p{font-size:15px!important}
+ .workspace>.content .sectionheading{margin:24px 0 15px}
+ .workspace>.content .sectionheading span{font-size:14px}
+ .workspace>.content .recipecards{gap:16px}
+ .workspace>.content .foodart{height:155px}
+ .workspace>.content .cardbody{padding:18px}
+ .workspace>.content .cardbody h3{font-size:20px!important}
+ .workspace>.content .cardbody p{font-size:14px!important}
+ .workspace>.content .eyebrow{font-size:11px!important}
+ .workspace>.content .home-pantry-cta{padding:22px 25px;margin-top:24px}
+ .workspace>.content .home-pantry-cta p{font-size:15px!important}
+ .workspace>.content .primary,.workspace>.content .secondary,.workspace>.content .view{font-size:14px;min-height:42px}
+ .navlinks button{font-size:15px;padding:13px 14px}
+ .brand{font-size:23px}
+ .sidefoot{font-size:13px!important}
+ .site-footer{font-size:13px}
+ .authscreen:has(.landing-panel){padding:22px}
+ .landing-panel{width:min(1100px,100%);max-width:1100px;gap:32px;padding:clamp(32px,4vw,52px)}
+ .landing-copy h1{font-size:clamp(40px,3.4vw,48px)!important}
+ .landing-copy .landing-lead{font-size:18px!important}
+ .landing-copy>p{font-size:16px!important;line-height:1.6}
+ .landing-benefits{font-size:15px;gap:10px}
+ .landing-assurance{font-size:13px!important}
+ .landing-visual{min-height:320px}
+ .landing-visual strong{font-size:24px}
+}
