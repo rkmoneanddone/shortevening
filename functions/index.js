@@ -29,14 +29,23 @@ async function readPreferences(uid) {
   };
 }
 
-/** Atomically limit AI usage to five requests per UTC day per account. */
-async function takeQuota(uid) {
+/** Server-owned paid entitlement; never trust client-submitted plan values. */
+async function readDailyLimit(uid) {
+  const snapshot = await getFirestore().doc('users/' + uid + '/entitlements/ai').get();
+  const data = snapshot.exists ? snapshot.data() : null;
+  const paid = data?.status === 'active' && data?.plan === 'paid'
+    && (!data.expiresAt || (typeof data.expiresAt.toMillis === 'function' && data.expiresAt.toMillis() > Date.now()));
+  return paid ? 20 : 5;
+}
+
+/** Atomically enforce the user's daily AI allowance (UTC day). */
+async function takeQuota(uid, limit) {
   const day = new Date().toISOString().slice(0, 10);
   const ref = getFirestore().doc('users/' + uid + '/aiUsage/' + day);
   await getFirestore().runTransaction(async transaction => {
     const snapshot = await transaction.get(ref);
     const count = snapshot.exists ? snapshot.get('count') || 0 : 0;
-    if (count >= 5) throw new HttpsError('resource-exhausted', 'Daily AI limit reached.');
+    if (count >= limit) throw new HttpsError('resource-exhausted', 'Daily AI limit reached (' + limit + ' requests). Resets at 00:00 UTC.');
     transaction.set(ref, { count: count + 1, updatedAt: FieldValue.serverTimestamp() }, { merge: true });
   });
 }
@@ -90,7 +99,8 @@ exports.suggestPantrySnacks = onCall({
   try {
     const preferences = await readPreferences(request.auth.uid);
     if (!openAIKey.value()) throw new HttpsError('failed-precondition', 'AI is not configured.');
-    await takeQuota(request.auth.uid);
+    const dailyLimit = await readDailyLimit(request.auth.uid);
+    await takeQuota(request.auth.uid, dailyLimit);
     const recipes = await generateIdeas(openAIKey.value(), ingredients, preferences);
     return {
       recipes,
