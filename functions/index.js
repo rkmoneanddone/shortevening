@@ -2,6 +2,7 @@
 const { onCall, HttpsError } = require('firebase-functions/v2/https');
 const { defineSecret } = require('firebase-functions/params');
 const { initializeApp } = require('firebase-admin/app');
+const { getAuth } = require('firebase-admin/auth');
 const { getFirestore, FieldValue } = require('firebase-admin/firestore');
 initializeApp();
 const openAIKey = defineSecret('OPENAI_API_KEY');
@@ -29,14 +30,29 @@ async function readPreferences(uid) {
   };
 }
 
-/** Server-owned paid entitlement; never trust client-submitted plan values. */
-async function readDailyLimit(uid) {
-  const snapshot = await getFirestore().doc('users/' + uid + '/entitlements/ai').get();
-  const data = snapshot.exists ? snapshot.data() : null;
+/** A single server-owned access policy, reusable by web and future mobile clients. */
+async function resolveAccess(uid) {
+  const [user, entitlement] = await Promise.all([
+    getAuth().getUser(uid),
+    getFirestore().doc('users/' + uid + '/entitlements/ai').get()
+  ]);
+  const data = entitlement.exists ? entitlement.data() : null;
   const paid = data?.status === 'active' && data?.plan === 'paid'
     && (!data.expiresAt || (typeof data.expiresAt.toMillis === 'function' && data.expiresAt.toMillis() > Date.now()));
-  return paid ? 20 : 5;
+  const created = Date.parse(user.metadata.creationTime);
+  const trialEndsAt = Number.isFinite(created) ? new Date(created + 30 * 86400000).toISOString() : null;
+  const trial = !paid && Number.isFinite(created) && Date.now() < created + 30 * 86400000;
+  const tier = paid ? 'paid' : trial ? 'trial' : 'free';
+  return { tier, aiDailyLimit: tier === 'free' ? 2 : 5,
+    historyDays: tier === 'free' ? 1 : 14, favoritesEnabled: tier !== 'free',
+    rotatingDailyPicks: tier !== 'free', trialEndsAt };
 }
+
+/** Client-readable access status; payment webhook will eventually manage entitlements. */
+exports.getAccessStatus = onCall({ region: 'asia-south1', enforceAppCheck: true }, async request => {
+  if (!request.auth) throw new HttpsError('unauthenticated', 'Sign in first.');
+  return resolveAccess(request.auth.uid);
+});
 
 /** Atomically enforce the user's daily AI allowance (UTC day). */
 async function takeQuota(uid, limit) {
@@ -99,7 +115,7 @@ exports.suggestPantrySnacks = onCall({
   try {
     const preferences = await readPreferences(request.auth.uid);
     if (!openAIKey.value()) throw new HttpsError('failed-precondition', 'AI is not configured.');
-    const dailyLimit = await readDailyLimit(request.auth.uid);
+    const { aiDailyLimit: dailyLimit } = await resolveAccess(request.auth.uid);
     await takeQuota(request.auth.uid, dailyLimit);
     const recipes = await generateIdeas(openAIKey.value(), ingredients, preferences);
     return {
