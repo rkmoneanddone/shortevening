@@ -17,10 +17,10 @@ The backend callable `getAccessStatus` resolves the effective tier; `suggestPant
 ## Product and release backlog
 
 - Verify build, Firestore indexes, end-to-end auth and functions on deployed web.
-- Fix AI error quota accounting and add server-side response caching.
-- Add server-side allergen and ingredient validation, expand recipes and reliable dish photography.
-- Enforce favorite limit atomically on the backend; restrict free-tier history and favorites reads at security rules/backend layer.
-- Implement reliable history pagination beyond current 100-document cap and add automated tests.
+- Implemented: refund failed AI attempts, server-side 24-hour response cache, request latency logs. Still test concurrency and refund failures.
+- Implemented: basic server-side allergen/diet/time filtering and pantry missing-ingredient recalculation; curated recipe catalog expanded to 21. Still requires comprehensive food safety validation and verified, licensed dish photography.
+- Implemented: atomic favorite limit through backend callable and direct client favorite writes denied. Still restrict free-tier history and favorites reads at security rules/backend layer.
+- Still implement history pagination beyond current 100-document cap, confirm boundary semantics and add automated tests.
 - Add admin reporting (retaining existing history without duplicating full records), observability, budgets and rate limiting.
 - Complete native Android application, Google Sign-In configuration, and device testing — deferred.
 - Implement Razorpay, webhooks, billing and subscription renewal — deferred.
