@@ -1,49 +1,71 @@
 import {useEffect,useState} from 'react';
-import {onAuthStateChanged,signInWithPopup,signOut,User} from 'firebase/auth';
-import {doc,getDoc,setDoc,serverTimestamp,collection,addDoc} from 'firebase/firestore';
+import {onAuthStateChanged,signInWithPopup,signOut,type User} from 'firebase/auth';
+import {addDoc,collection,deleteDoc,doc,getDoc,getDocs,serverTimestamp,setDoc} from 'firebase/firestore';
 import {auth,db,googleProvider} from './firebase';
 
-type Snack={id:string;name:string;meta:string;tag:string;ingredients:string[];steps:string[]};
-const snacks:Snack[]=[
-{id:'veg-poha',name:'Vegetable Poha',meta:'15 min · Light & filling',tag:'Healthy',ingredients:['Poha','Onion','Peas','Peanuts','Lemon'],steps:['Rinse poha and drain.','Sauté onion, peas and peanuts.','Add poha, season and cook 3–4 minutes.','Finish with lemon.']},
-{id:'paneer-toast',name:'Paneer Toast',meta:'12 min · Crispy & cheesy',tag:'Kids love it',ingredients:['Bread','Paneer','Onion','Capsicum'],steps:['Mix crumbled paneer with chopped vegetables.','Spread over bread.','Toast on a pan until crisp and warm.']},
-{id:'masala-corn',name:'Masala Corn',meta:'10 min · Quick chai snack',tag:'Chai Time',ingredients:['Sweet corn','Butter','Chaat masala','Lemon'],steps:['Boil or steam corn.','Toss with butter and chaat masala.','Finish with lemon and serve warm.']}
+type Page='Home'|'History'|'Favorites'|'Profile';
+type Recipe={id:string;name:string;minutes:number;tag:string;emoji:string;ingredients:string[];steps:string[];diet:'vegetarian'|'eggetarian';allergens:string[]};
+type Profile={adults:number;children:number;diet:'vegetarian'|'eggetarian'|'nonvegetarian';allergies:string[];minutes:number};
+type HistoryEntry={id:string;recipeId:string;dishName:string;date:string};
+const RECIPES:Recipe[]=[
+{id:'poha',name:'Vegetable Poha',minutes:15,tag:'Light & comforting',emoji:'🥣',ingredients:['Poha','Onion','Peas','Peanuts','Lemon'],steps:['Rinse poha and drain.','Sauté onion, peas and peanuts.','Add poha, season and cook for 3–4 minutes.','Finish with lemon.'],diet:'vegetarian',allergens:['Peanuts']},
+{id:'paneer-toast',name:'Paneer Toast',minutes:12,tag:'Family favourite',emoji:'🥪',ingredients:['Bread','Paneer','Onion','Capsicum'],steps:['Crumble paneer and chop vegetables.','Mix, season and spread on bread.','Toast until golden and warm.'],diet:'vegetarian',allergens:['Milk','Wheat']},
+{id:'masala-corn',name:'Masala Corn',minutes:10,tag:'Perfect with chai',emoji:'🌽',ingredients:['Sweet corn','Butter','Chaat masala','Lemon'],steps:['Steam or boil the corn.','Toss with butter and chaat masala.','Add lemon and serve warm.'],diet:'vegetarian',allergens:['Milk']},
+{id:'besan-chilla',name:'Besan Chilla',minutes:20,tag:'Protein-rich',emoji:'🫓',ingredients:['Besan','Onion','Tomato','Coriander'],steps:['Whisk besan with water and seasonings.','Add chopped vegetables.','Cook thin pancakes on both sides.'],diet:'vegetarian',allergens:[]},
+{id:'fruit-chaat',name:'Fruit Chaat',minutes:10,tag:'Fresh & colourful',emoji:'🍎',ingredients:['Apple','Banana','Orange','Chaat masala'],steps:['Wash and chop fruit.','Sprinkle with chaat masala.','Toss and serve fresh.'],diet:'vegetarian',allergens:[]},
+{id:'egg-toast',name:'Egg Toast',minutes:15,tag:'Quick & filling',emoji:'🍳',ingredients:['Egg','Bread','Onion','Pepper'],steps:['Beat eggs with onion and pepper.','Dip bread into the mixture.','Cook both sides on a lightly oiled pan.'],diet:'eggetarian',allergens:['Egg','Wheat']}
 ];
+const ALLERGENS=['Milk','Wheat','Peanuts','Egg','Soy','Tree nuts'];
+const DEFAULT_PROFILE:Profile={adults:2,children:0,diet:'vegetarian',allergies:[],minutes:20};
 
+/** Return a readable message while retaining the original error in the console. */
+function errorText(error:unknown){const code=(error as {code?:string})?.code;if(code==='permission-denied')return 'Firestore access denied. Deploy the project Firestore rules and retry.';if(code==='auth/popup-closed-by-user')return 'Sign-in was cancelled.';return error instanceof Error?error.message:'Something went wrong. Please retry.';}
+
+/** Produce three deterministic daily picks that respect diet, allergens and time. */
+function dailyPicks(profile:Profile){const eligible=RECIPES.filter(r=>(profile.diet!=='vegetarian'||r.diet==='vegetarian')&&r.minutes<=profile.minutes&&!r.allergens.some(a=>profile.allergies.includes(a)));const day=Math.floor(Date.now()/86400000);return [...eligible].sort((a,b)=>((a.id.length*17+day)%31)-((b.id.length*17+day)%31)).slice(0,3);}
+
+/** Display a bounded number selector for household members. */
+function Counter({label,value,min,max,onChange}:{label:string;value:number;min:number;max:number;onChange:(v:number)=>void}){return <div className="counter"><strong>{label}</strong><div><button disabled={value<=min} onClick={()=>onChange(value-1)} aria-label={'Remove '+label}>−</button><b>{value}</b><button disabled={value>=max} onClick={()=>onChange(value+1)} aria-label={'Add '+label}>+</button></div></div>;}
+
+/** Root application: own authentication, navigation and persisted household state. */
 export default function App(){
- const [user,setUser]=useState<User|null>(null); const [loading,setLoading]=useState(true);
- const [onboarded,setOnboarded]=useState(false); const [family,setFamily]=useState('2 adults, 1 child');
- const [selected,setSelected]=useState<Snack|null>(null); const [message,setMessage]=useState('');
- useEffect(()=>onAuthStateChanged(auth,async u=>{
-  setUser(u);
-  try{
-    if(u){
-      const s=await getDoc(doc(db,'users',u.uid));
-      setOnboarded(Boolean(s.data()?.onboardingCompleted));
-    }else{
-      setOnboarded(false);
-    }
-  }catch(error){
-    console.error('Profile load failed',error);
-    setOnboarded(false);
-  }finally{
-    setLoading(false);
-  }
-}),[]);
- async function login(){
-  setMessage('');
-  try{
-    await signInWithPopup(auth,googleProvider);
-  }catch(error){
-    console.error('Google sign-in failed',error);
-    setMessage('Google sign-in could not complete. Please try again.');
-  }
-}
- async function saveSetup(){if(!user)return;await setDoc(doc(db,'users',user.uid),{uid:user.uid,displayName:user.displayName,email:user.email,familySummary:family,onboardingCompleted:true,updatedAt:serverTimestamp()},{merge:true});setOnboarded(true);}
- async function made(snack:Snack){if(!user)return;await addDoc(collection(db,'users',user.uid,'history'),{recipeId:snack.id,dishName:snack.name,dishFamily:snack.id,madeAt:serverTimestamp(),source:'home'});setMessage(snack.name+' saved to today’s history ✓');}
- if(loading)return <main className="center"><p>Preparing your evening…</p></main>;
- if(!user)return <main className="welcome"><div><span className="eyebrow">SORTEVENING</span><h1>Evening sorted.</h1><p>Three useful snack ideas for your family. No endless scrolling. No “aaj kya banaye?” stress.</p><button className="primary" onClick={login}>Continue with Google</button>{message&&<p className="error">{message}</p>}</div></main>;
- if(!onboarded)return <main className="welcome"><div><span className="eyebrow">QUICK SETUP</span><h1>Tell us about home.</h1><p>We’ll use this to make your three daily picks more relevant.</p><label>Family</label><input value={family} onChange={e=>setFamily(e.target.value)} placeholder="2 adults, 1 child"/><button className="primary" onClick={saveSetup}>Start sorting my evenings</button></div></main>;
- if(selected)return <main className="shell"><button className="back" onClick={()=>setSelected(null)}>← Today’s picks</button><span className="tag">{selected.tag}</span><h1>{selected.name}</h1><p className="muted">{selected.meta}</p><h2>What you need</h2><ul>{selected.ingredients.map(x=><li key={x}>{x}</li>)}</ul><h2>Make it</h2><ol>{selected.steps.map(x=><li key={x}>{x}</li>)}</ol><button className="made" onClick={()=>made(selected)}>✓ Made Today</button>{message&&<p className="success">{message}</p>}</main>;
- return <main className="shell"><header><div><span className="eyebrow">SORT YOUR EVENING</span><h1>Aaj kya banaye?</h1><p>Three easy ideas for your family. No endless scrolling.</p></div><button className="avatar" onClick={()=>signOut(auth)} title="Sign out">{user.displayName?.[0]||'U'}</button></header><section className="chips"><button>10 min</button><button>Healthy</button><button>Kids</button><button>Chai Time</button></section><section className="title"><h2>Today’s 3 picks</h2><span>Made for your evening</span></section><section className="cards">{snacks.map((s,i)=><article className="card" key={s.id}><div className="number">0{i+1}</div><div className="food"><span className="tag">{s.tag}</span><h3>{s.name}</h3><p>{s.meta}</p><button className="recipe" onClick={()=>{setSelected(s);setMessage('')}}>See recipe →</button></div></article>)}</section><nav><b>Home</b><span>History</span><span>Favorites</span><span>Profile</span></nav></main>;
+const [user,setUser]=useState<User|null>(null),[busy,setBusy]=useState(true),[saving,setSaving]=useState(false);
+const [profile,setProfile]=useState<Profile>(DEFAULT_PROFILE),[onboarded,setOnboarded]=useState(false);
+const [page,setPage]=useState<Page>('Home'),[recipe,setRecipe]=useState<Recipe|null>(null);
+const [history,setHistory]=useState<HistoryEntry[]>([]),[favorites,setFavorites]=useState<string[]>([]);
+const [message,setMessage]=useState(''),[failure,setFailure]=useState(''),[step,setStep]=useState(0);
+
+/** Restore Google session and fetch the user's profile without trapping the loading screen. */
+useEffect(()=>{const unsubscribe=onAuthStateChanged(auth,async next=>{setBusy(true);setFailure('');setUser(next);try{if(next){const snapshot=await getDoc(doc(db,'users',next.uid));if(snapshot.exists()){const d=snapshot.data();setProfile({adults:d.household?.adults??2,children:d.household?.children??0,diet:d.diet??'vegetarian',allergies:d.allergies??[],minutes:d.preferredMinutes??20});setOnboarded(Boolean(d.onboardingCompleted));}else setOnboarded(false);}else{setOnboarded(false);setHistory([]);setFavorites([]);}}catch(error){console.error('Profile loading',error);setFailure(errorText(error));setOnboarded(false);}finally{setBusy(false);}});return unsubscribe;},[]);
+
+/** Sign in with Google and expose popup failures to the user. */
+async function login(){setFailure('');try{await signInWithPopup(auth,googleProvider);}catch(error){console.error('Sign-in',error);setFailure(errorText(error));}}
+
+/** Save structured onboarding data or profile edits to the signed-in account. */
+async function saveProfile(){if(!user)return;setSaving(true);setFailure('');try{await setDoc(doc(db,'users',user.uid),{uid:user.uid,displayName:user.displayName,email:user.email,photoURL:user.photoURL,household:{adults:profile.adults,children:profile.children},diet:profile.diet,allergies:profile.allergies,preferredMinutes:profile.minutes,onboardingCompleted:true,updatedAt:serverTimestamp()},{merge:true});setOnboarded(true);setStep(0);setMessage('Your preferences are saved.');}catch(error){console.error('Save profile',error);setFailure(errorText(error));}finally{setSaving(false);}}
+
+/** Load real history and favorites for the current signed-in user. */
+async function loadLists(){if(!user)return;setFailure('');try{const [h,f]=await Promise.all([getDocs(collection(db,'users',user.uid,'history')),getDocs(collection(db,'users',user.uid,'favorites'))]);setHistory(h.docs.map(d=>({id:d.id,recipeId:String(d.data().recipeId),dishName:String(d.data().dishName),date:d.data().madeAt?.toDate?.()?.toLocaleDateString()??'Today'})).reverse());setFavorites(f.docs.map(d=>d.id));}catch(error){console.error('Load saved items',error);setFailure(errorText(error));}}
+
+/** Navigate to a real screen and load its server-backed data. */
+function navigate(next:Page){setPage(next);setRecipe(null);setMessage('');setFailure('');if(next==='History'||next==='Favorites')void loadLists();}
+
+/** Save or remove a recipe from the user's favorites collection. */
+async function toggleFavorite(item:Recipe){if(!user)return;setSaving(true);setFailure('');try{const ref=doc(db,'users',user.uid,'favorites',item.id);if(favorites.includes(item.id)){await deleteDoc(ref);setFavorites(old=>old.filter(x=>x!==item.id));}else{await setDoc(ref,{recipeId:item.id,createdAt:serverTimestamp()});setFavorites(old=>[...old,item.id]);}}catch(error){console.error('Favorite',error);setFailure(errorText(error));}finally{setSaving(false);}}
+
+/** Record one completed dish, with an explicit confirmation and disabled submit state. */
+async function madeToday(item:Recipe){if(!user||saving)return;setSaving(true);setFailure('');try{await addDoc(collection(db,'users',user.uid,'history'),{recipeId:item.id,dishFamily:item.id,dishName:item.name,madeAt:serverTimestamp()});setMessage(item.name+' added to your history.');}catch(error){console.error('Made Today',error);setFailure(errorText(error));}finally{setSaving(false);}}
+
+const picks=dailyPicks(profile);
+const controls=<>{failure&&<div role="alert" className="alert">{failure}</div>}{message&&<div role="status" className="notice">{message}</div>}</>;
+const preferences=<><div className="countergroup"><Counter label="Adults" value={profile.adults} min={1} max={12} onChange={adults=>setProfile(p=>({...p,adults}))}/><Counter label="Children" value={profile.children} min={0} max={12} onChange={children=>setProfile(p=>({...p,children}))}/></div><h3>Food preference</h3><div className="options">{(['vegetarian','eggetarian','nonvegetarian'] as const).map(d=><button className={profile.diet===d?'chosen':''} key={d} onClick={()=>setProfile(p=>({...p,diet:d}))}>{d==='nonvegetarian'?'Non-vegetarian':d==='eggetarian'?'Eggetarian':'Vegetarian'}</button>)}</div><h3>Allergies to avoid</h3><div className="options">{ALLERGENS.map(a=><button key={a} className={profile.allergies.includes(a)?'chosen':''} onClick={()=>setProfile(p=>({...p,allergies:p.allergies.includes(a)?p.allergies.filter(x=>x!==a):[...p.allergies,a]}))}>{a}</button>)}</div><p className="hint">Always check ingredients and packaging for allergens.</p><h3>Time available</h3><div className="options">{[10,15,20,30].map(n=><button key={n} className={profile.minutes===n?'chosen':''} onClick={()=>setProfile(p=>({...p,minutes:n}))}>{n} min</button>)}</div></>;
+if(busy)return <main className="center">Preparing your evening…</main>;
+if(!user)return <main className="authscreen"><div className="authpanel"><span className="eyebrow">SORTEVENING · EVERYDAY MADE EASIER</span><div className="herofood">🍲 🥪 🌽</div><h1>Good evenings start with good ideas.</h1><p>Three easy snack suggestions, chosen for your household. Less deciding, more enjoying.</p><button className="primary" onClick={()=>void login()}>Continue with Google →</button>{controls}</div></main>;
+if(!onboarded)return <main className="authscreen"><div className="authpanel"><span className="eyebrow">YOUR HOME · STEP {step+1} OF 2</span><h1>{step===0?'Who are we cooking for?':'Make it yours.'}</h1><p>Just a few quick choices. You can change these anytime.</p>{step===0?<div className="countergroup"><Counter label="Adults" value={profile.adults} min={1} max={12} onChange={adults=>setProfile(p=>({...p,adults}))}/><Counter label="Children" value={profile.children} min={0} max={12} onChange={children=>setProfile(p=>({...p,children}))}/></div>:<><h3>Food preference</h3><div className="options">{(['vegetarian','eggetarian','nonvegetarian'] as const).map(d=><button key={d} className={profile.diet===d?'chosen':''} onClick={()=>setProfile(p=>({...p,diet:d}))}>{d}</button>)}</div><h3>Allergies</h3><div className="options">{ALLERGENS.map(a=><button key={a} className={profile.allergies.includes(a)?'chosen':''} onClick={()=>setProfile(p=>({...p,allergies:p.allergies.includes(a)?p.allergies.filter(x=>x!==a):[...p.allergies,a]}))}>{a}</button>)}</div><p className="hint">Always verify allergens in ingredients.</p><h3>Cooking time</h3><div className="options">{[10,15,20,30].map(n=><button key={n} className={profile.minutes===n?'chosen':''} onClick={()=>setProfile(p=>({...p,minutes:n}))}>{n} min</button>)}</div></>}<div className="actions">{step===1&&<button className="secondary" onClick={()=>setStep(0)}>Back</button>}<button className="primary" disabled={saving} onClick={()=>step===0?setStep(1):void saveProfile()}>{saving?'Saving…':step===0?'Continue →':'Finish setup →'}</button></div>{controls}</div></main>;
+return <div className="layout"><aside className="sidebar"><div className="brand">Sort<span>Evening</span><small>Every evening, sorted.</small></div><div className="navlinks">{(['Home','History','Favorites','Profile'] as Page[]).map(p=><button key={p} className={page===p?'active':''} onClick={()=>navigate(p)}>{p==='Home'?'⌂':p==='History'?'◷':p==='Favorites'?'♡':'◉'} &nbsp;{p}</button>)}</div><div className="sidefoot">Made for everyday family moments.</div></aside><main className="workspace"><header className="topbar"><div className="brand mobilebrand">Sort<span>Evening</span></div><button className="account" onClick={()=>navigate('Profile')}>{user.photoURL?<img src={user.photoURL} alt=""/>:<span>{user.displayName?.[0]??'U'}</span>}<span>{user.displayName?.split(' ')[0]??'Profile'}</span></button></header>{controls}
+{recipe?<section className="content"><button className="back" onClick={()=>setRecipe(null)}>← Back to {page}</button><div className="recipehero"><span>{recipe.emoji}</span><div><div className="eyebrow">{recipe.tag}</div><h1>{recipe.name}</h1><p>{recipe.minutes} minutes · Easy · {profile.adults+profile.children} at home</p></div></div><div className="twocol"><section className="surface"><h2>Ingredients</h2><ul>{recipe.ingredients.map(x=><li key={x}>{x}</li>)}</ul></section><section className="surface"><h2>Let's make it</h2><ol>{recipe.steps.map(x=><li key={x}>{x}</li>)}</ol></section></div><div className="actions"><button className="secondary" disabled={saving} onClick={()=>void toggleFavorite(recipe)}>{favorites.includes(recipe.id)?'♥ Saved':'♡ Save favorite'}</button><button className="primary" disabled={saving} onClick={()=>void madeToday(recipe)}>{saving?'Saving…':'✓ Made Today'}</button></div></section>:
+page==='Home'?<section className="content"><div className="intro"><span className="eyebrow">YOUR DAILY INSPIRATION</span><h1>Aaj kya banaye? <span>✨</span></h1><p>Three simple ideas for a happier evening. Made for your family.</p></div><div className="highlight"><div><span>☀️ TODAY'S PICKS</span><h2>Less thinking. More snacking.</h2><p>{profile.adults} adult{profile.adults===1?'':'s'} · {profile.children} children · {profile.minutes} min or less</p></div><span className="highlightemoji">🍵</span></div><div className="sectionheading"><h2>Your 3 picks</h2><span>Fresh ideas for today</span></div>{picks.length===0?<div className="surface">No recipes match all your filters. Change your preferences in Profile to see more ideas.</div>:<div className="recipecards">{picks.map((r,i)=><article className="recipecard" key={r.id}><div className="foodart"><span>{r.emoji}</span><em>0{i+1}</em></div><div className="cardbody"><span className="eyebrow">{r.tag}</span><h3>{r.name}</h3><p>⏱ {r.minutes} min &nbsp; · &nbsp; Easy</p><div className="cardactions"><button className="view" onClick={()=>setRecipe(r)}>View recipe →</button><button className="heart" disabled={saving} onClick={()=>void toggleFavorite(r)} aria-label="Toggle favorite">{favorites.includes(r.id)?'♥':'♡'}</button></div></div></article>)}</div>}</section>:
+page==='History'?<section className="content"><span className="eyebrow">YOUR COOKING JOURNEY</span><h1>Made with love.</h1><p className="muted">Your snack history, saved for you.</p>{history.length?<div className="surface">{history.map(h=><div className="historyrow" key={h.id}><div><strong>{h.dishName}</strong><small>{h.date}</small></div><button onClick={()=>{const r=RECIPES.find(x=>x.id===h.recipeId);if(r)setRecipe(r);}}>View recipe →</button></div>)}</div>:<div className="surface empty">🍽️<h2>Your story starts with a snack.</h2><p>Mark a recipe Made Today and it'll appear here.</p><button className="secondary" onClick={()=>navigate('Home')}>Explore today's picks</button></div>}</section>:
+page==='Favorites'?<section className="content"><span className="eyebrow">SAVED FOR LATER</span><h1>Your favorites.</h1>{favorites.length?<div className="recipecards">{RECIPES.filter(r=>favorites.includes(r.id)).map(r=><article className="recipecard" key={r.id}><div className="foodart"><span>{r.emoji}</span></div><div className="cardbody"><h3>{r.name}</h3><p>{r.minutes} min</p><button className="view" onClick={()=>setRecipe(r)}>View recipe →</button></div></article>)}</div>:<div className="surface empty">♡<h2>Keep your favourites close.</h2><p>Tap the heart on any recipe to save it here.</p></div>}</section>:
+<section className="content"><span className="eyebrow">YOUR ACCOUNT</span><h1>My profile.</h1><div className="surface identity">{user.photoURL&&<img src={user.photoURL} alt="Profile"/>}<div><strong>{user.displayName}</strong><p>{user.email}</p><small>Google account connected</small></div></div><div className="surface"><h2>Household & food preferences</h2>{preferences}<div className="actions"><button className="primary" disabled={saving} onClick={()=>void saveProfile()}>{saving?'Saving…':'Save changes'}</button></div></div><div className="surface"><h2>Plan & account</h2><p>Plan: Free preview · Premium billing not yet enabled</p><button className="secondary" onClick={async()=>{try{await signOut(auth);}catch(error){setFailure(errorText(error));}}}>Sign out</button></div></section>}</main><nav className="mobiletabs">{(['Home','History','Favorites','Profile'] as Page[]).map(p=><button key={p} className={page===p?'active':''} onClick={()=>navigate(p)}><span>{p==='Home'?'⌂':p==='History'?'◷':p==='Favorites'?'♡':'◉'}</span>{p}</button>)}</nav></div>;
 }
