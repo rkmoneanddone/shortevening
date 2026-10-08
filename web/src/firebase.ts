@@ -22,5 +22,11 @@ export const googleProvider=new GoogleAuthProvider();
 export const functions=getFunctions(firebaseApp,'asia-south1');
 
 /** Enable App Check when the public reCAPTCHA site key is configured. */
-export const appCheckReady=Boolean(import.meta.env.VITE_RECAPTCHA_SITE_KEY);
-if(appCheckReady){initializeAppCheck(firebaseApp,{provider:new ReCaptchaV3Provider(import.meta.env.VITE_RECAPTCHA_SITE_KEY),isTokenAutoRefreshEnabled:true});}
+const recaptchaSiteKey=import.meta.env.VITE_RECAPTCHA_SITE_KEY;
+export const appCheckReady=Boolean(recaptchaSiteKey);
+if(recaptchaSiteKey){
+  initializeAppCheck(firebaseApp,{
+    provider:new ReCaptchaV3Provider(recaptchaSiteKey),
+    isTokenAutoRefreshEnabled:true
+  });
+}
