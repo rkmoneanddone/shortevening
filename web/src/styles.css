@@ -302,3 +302,29 @@ html body,html body *{font-weight:400!important}
  .authscreen:has(.landing-panel)>.site-footer{padding:14px 10px 20px}
  .authscreen:has(.landing-panel) .landing-visual{min-height:80px}
 }
+
+/* Hierarchy through size and grouping, never font weight. */
+.site-footer .footer-love{font-size:15px!important;line-height:1.45}
+.site-footer .footer-links a,.site-footer .footer-links button,.site-footer .footer-credit{font-size:14px!important}
+@media(max-width:680px){
+ .site-footer .footer-love{font-size:14px!important}
+ .site-footer .footer-links a,.site-footer .footer-links button,.site-footer .footer-credit{font-size:13px!important}
+}
+.workspace>.content .surface>h2{font-size:25px!important;letter-spacing:-.02em;margin:2px 0 24px;color:#243a2d}
+.workspace>.content .surface>h3{font-size:19px!important;line-height:1.4;margin:24px 0 12px;color:#2d4835}
+.workspace>.content .surface .options{gap:10px}
+.workspace>.content .surface .options button{font-size:15px;min-height:43px}
+.workspace>.content .surface .countergroup{margin:14px 0 26px}
+.workspace>.content .surface .counter{border-radius:14px}
+.workspace>.content .surface .counter strong{font-size:16px!important;color:#2d4936}
+.workspace>.content .surface .hint{font-size:13px!important}
+@media(max-width:680px){
+ .workspace>.content .surface>h2{font-size:21px!important;margin-bottom:18px}
+ .workspace>.content .surface>h3{font-size:17px!important;margin:20px 0 10px}
+ .workspace>.content .surface .options button{font-size:14px;min-height:39px}
+}
+.authscreen:has(.landing-panel){background:radial-gradient(ellipse at 15% 25%,#e8f4dc 0,transparent 43%),radial-gradient(ellipse at 85% 65%,#ffead9 0,transparent 40%),#f7f8f3}
+.authscreen:has(.landing-panel)>.landing-panel{border:1px solid #e5eade;box-shadow:0 18px 48px #25432e0c}
+.landing-visual{background:radial-gradient(circle at 65% 25%,#fdf6dd,transparent 65%),linear-gradient(135deg,#e1f1d8,#fbe7d9)!important}
+.landing-copy .landing-lead{color:#2d4434!important}
+.landing-benefits span{display:block;padding:2px 0}
