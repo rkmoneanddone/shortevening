@@ -247,3 +247,6 @@ exports.suggestPantrySnacks = onCall({
     throw new HttpsError('unavailable', 'AI is temporarily unavailable. Use the standard recipe finder.');
   }
 });
+
+// Payment entry points share the same server-owned Firebase entitlements.
+Object.assign(exports,require('./razorpay'));
