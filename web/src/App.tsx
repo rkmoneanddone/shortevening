@@ -1,6 +1,6 @@
 import {useEffect,useState} from 'react';
 import {onAuthStateChanged,signInWithPopup,signOut,type User} from 'firebase/auth';
-import {addDoc,collection,doc,getDoc,serverTimestamp,setDoc} from 'firebase/firestore';
+import {addDoc,collection,doc,getDoc,onSnapshot,serverTimestamp,setDoc} from 'firebase/firestore';
 import {auth,db,googleProvider,functions,appCheckReady} from './firebase';
 import {httpsCallable} from 'firebase/functions';
 
@@ -99,6 +99,8 @@ export default function App(){
 const [access,setAccess]=useState<Access>(FREE_ACCESS);
 const [refreshingAccess,setRefreshingAccess]=useState(false);
 const [checkoutBusy,setCheckoutBusy]=useState(false);
+const [billingPlans,setBillingPlans]=useState<Record<string,{amountMinor:number;currency:string;durationDays:number}>>({});
+const [billingMessage,setBillingMessage]=useState('');
 const [user,setUser]=useState<User|null>(null),[busy,setBusy]=useState(true),[saving,setSaving]=useState(false);
 const [profile,setProfile]=useState<Profile>(DEFAULT_PROFILE),[onboarded,setOnboarded]=useState(false);
 const [page,setPage]=useState<Page>('Home'),[recipe,setRecipe]=useState<Recipe|null>(null);
@@ -135,16 +137,37 @@ async function startPremiumCheckout(plan:'monthly'|'yearly'){
   const {data}=await create({plan});
   const Razorpay=(window as Window & {Razorpay?:new (options:Record<string,unknown>)=>{open:()=>void}}).Razorpay;
   if(!Razorpay)throw Error('Payment checkout is unavailable. Please try again later.');
+  setBillingMessage('Payment checkout opened. Complete or cancel the payment to continue.');
   const checkout=new Razorpay({key:data.keyId,order_id:data.orderId,amount:data.amount,currency:data.currency,name:'NashtaBuddy',description:plan==='monthly'?'Monthly Premium':'Yearly Premium',
    handler:async(payment:{razorpay_payment_id:string;razorpay_order_id:string;razorpay_signature:string})=>{
     try{
      await httpsCallable(functions,'verifyRazorpayPayment')(payment);
-     await refreshSubscription();
-    }catch(error){setFailure(errorText(error));}
-   },modal:{ondismiss:()=>setCheckoutBusy(false)}});
+     await refreshSubscription();setBillingMessage('Payment verified. Your account is updating.');
+    }catch(error){setFailure(errorText(error));setBillingMessage('Payment verification pending. Please refresh your subscription shortly.');}
+   },modal:{ondismiss:()=>{setCheckoutBusy(false);setBillingMessage('Checkout closed. No payment was confirmed.');}},payment:{failed:()=>setBillingMessage('Payment failed. No Premium access was activated.')}});
   checkout.open();
  }catch(error){setFailure(errorText(error));}
  finally{setCheckoutBusy(false);}
+}
+
+/** Keep web entitlements live across tabs, devices and webhook updates. */
+useEffect(()=>{
+ if(!user)return;
+ const stop=onSnapshot(doc(db,'users',user.uid,'entitlements','ai'),()=>{
+  void httpsCallable<undefined,Access>(functions,'getAccessStatus')().then(result=>setAccess(result.data)).catch(error=>console.error('Entitlement refresh',error));
+ },error=>console.error('Entitlement listener',error));
+ return stop;
+},[user?.uid]);
+
+useEffect(()=>{
+ if(!user)return;
+ let active=true;
+ httpsCallable<undefined,{plans:Record<string,{amountMinor:number;currency:string;durationDays:number}>}>(functions,'getBillingPlans')().then(result=>{if(active)setBillingPlans(result.data.plans);}).catch(error=>console.error('Billing configuration',error));
+ return()=>{active=false;};
+},[user?.uid]);
+function priceLabel(id:string){
+ const plan=billingPlans[id];
+ return plan?new Intl.NumberFormat('en-IN',{style:'currency',currency:plan.currency,maximumFractionDigits:2}).format(plan.amountMinor/100):'Unavailable';
 }
 
 /** Sign in with Google and expose popup failures to the user. */
@@ -260,7 +283,7 @@ page==='Plans'?<section className="content plans-page"><span className="eyebrow"
 ['Daily default recipes','New picks daily','New picks daily','Same picks each day'],
 ['Stored history & favorites','Preserved','Preserved','Preserved'],
 ['Diet & household preferences','Included','Included','Included']
-].map(([feature,trial,paid,free])=><tr key={feature}><th scope="row">{feature}</th><td>{trial}</td><td>{paid}</td><td>{free}</td></tr>)}</tbody></table></div></div><div className="surface"><h2>Upgrade to Premium</h2><p>₹249/month or ₹1,999/year. Web checkout will become available after merchant verification.</p><div className="actions"><button className="primary" disabled={checkoutBusy} onClick={()=>void startPremiumCheckout('monthly')}>Upgrade monthly</button><button className="primary" disabled={checkoutBusy} onClick={()=>void startPremiumCheckout('yearly')}>Upgrade yearly</button><button className="secondary" disabled={refreshingAccess} onClick={()=>void refreshSubscription()}>{refreshingAccess?'Refreshing…':'↻ Refresh subscription'}</button></div><p className="muted">Your saved history and favorites will remain in your account even if your plan expires.</p></div></section>:
+].map(([feature,trial,paid,free])=><tr key={feature}><th scope="row">{feature}</th><td>{trial}</td><td>{paid}</td><td>{free}</td></tr>)}</tbody></table></div></div><div className="surface"><h2>Upgrade to Premium</h2><p>Current prices are loaded securely from Firebase. Payment availability depends on merchant activation.</p><div className="actions"><button className="primary" disabled={checkoutBusy||!billingPlans.monthly} onClick={()=>void startPremiumCheckout('monthly')}>Monthly · {priceLabel('monthly')}</button><button className="primary" disabled={checkoutBusy||!billingPlans.yearly} onClick={()=>void startPremiumCheckout('yearly')}>Yearly · {priceLabel('yearly')}</button><button className="secondary" disabled={refreshingAccess} onClick={()=>void refreshSubscription()}>{refreshingAccess?'Refreshing…':'↻ Refresh subscription'}</button></div><p className="muted">{billingMessage} Your saved history and favorites will remain in your account even if your plan expires.</p></div></section>:
 page==='Favorites'?<section className="content"><span className="eyebrow">SAVED FOR LATER</span><h1>Your favorites.</h1>{!access.favoritesEnabled?<div className="surface empty"><h2>Your favorites are safely saved.</h2><p>Restore access with Premium. Your saved recipes remain safe.</p><button className="secondary" onClick={()=>navigate('Plans')}>View plans</button></div>:<><p className="muted">Save up to 10 recipes. Showing {favorites.length}.</p>{favorites.length?<div className="recipecards">{RECIPES.filter(r=>favorites.includes(r.id)).sort((a,b)=>favorites.indexOf(a.id)-favorites.indexOf(b.id)).map(r=><article className="recipecard" key={r.id}><div className="foodart"><span>{r.emoji}</span></div><div className="cardbody"><h3>{r.name}</h3><p>{r.minutes} min</p><button className="view" onClick={()=>setRecipe(r)}>View recipe →</button></div></article>)}</div>:<div className="surface empty">♡<h2>Keep your favourites close.</h2><p>Tap the heart on any recipe to save it here.</p></div>}{!showMoreFavorites&&favorites.length===5&&<button className="secondary" onClick={async()=>{if(!user)return;try{const more=await savedItems('favorites','recent',10);setFavorites(more.favorites);setShowMoreFavorites(true);}catch(e){setFailure(errorText(e));}}}>Load more favorites</button>}</>}</section>:
 <section className="content"><span className="eyebrow">YOUR ACCOUNT</span><h1>My profile.</h1><div className="surface identity">{user.photoURL&&<img src={user.photoURL} alt="Profile"/>}<div><strong>{user.displayName}</strong><p>{user.email}</p><small>Google account connected</small></div></div><div className="surface"><h2>Household & food preferences</h2>{preferences}<div className="actions"><button className="primary" disabled={saving} onClick={()=>void saveProfile()}>{saving?'Saving…':'Save changes'}</button></div></div><div className="surface"><h2>Plan & account</h2><p>Plan: {access.tier==='trial'?'30-day trial':access.tier==='paid'?'Premium':'Free'} · {access.aiDailyLimit} AI requests per day. <button className="secondary" onClick={()=>navigate('Plans')}>Compare plans & upgrade →</button> <button className="secondary" disabled={refreshingAccess} onClick={()=>void refreshSubscription()}>↻ Refresh subscription</button></p><button className="secondary" onClick={async()=>{try{await signOut(auth);}catch(error){setFailure(errorText(error));}}}>Sign out</button></div></section>}{sharedFooter}</main><nav className="mobiletabs">{(['Home','Pantry','History','Favorites','Profile'] as Page[]).map(p=><button key={p} className={page===p?'active':''} onClick={()=>navigate(p)}><span>{p==='Home'?'🏠':p==='Pantry'?'🧺':p==='History'?'🕘':p==='Favorites'?'💚':'⚙️'}</span>{p}</button>)}</nav></div>;
 }
