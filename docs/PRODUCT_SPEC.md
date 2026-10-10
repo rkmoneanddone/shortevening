@@ -1,4 +1,4 @@
-# SortEvening — Current Product Rules (October 2026)
+# NashtaBuddy — Current Product Rules (October 2026)
 
 ## Access tiers (server-authoritative)
 
