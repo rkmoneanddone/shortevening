@@ -7,7 +7,19 @@ const keyId=defineSecret('RAZORPAY_KEY_ID');
 const keySecret=defineSecret('RAZORPAY_KEY_SECRET');
 const webhookSecret=defineSecret('RAZORPAY_WEBHOOK_SECRET');
 const enabled=defineSecret('RAZORPAY_CHECKOUT_ENABLED');
-const PLANS={monthly:{amount:24900,days:30},yearly:{amount:199900,days:365}}; // Existing displayed prices; confirm before enabling.
+async function readPlans(){
+ const snap=await getFirestore().doc('publicConfig/billing').get();
+ const plans={};
+ for(const id of ['monthly','yearly']){
+  const p=snap.data()?.plans?.[id];
+  if(p?.enabled===true&&Number.isSafeInteger(p.amountMinor)&&p.amountMinor>=100&&p.amountMinor<=10000000&&Number.isSafeInteger(p.durationDays)&&p.durationDays>=1&&p.durationDays<=3660&&p.currency==='INR')plans[id]={amount:p.amountMinor,days:p.durationDays,currency:p.currency};
+ }
+ return plans;
+}
+exports.getBillingPlans=onCall({region:'asia-south1',enforceAppCheck:true},async()=>{
+ const plans=await readPlans();
+ return {plans:Object.fromEntries(Object.entries(plans).map(([id,p])=>[id,{amountMinor:p.amount,currency:p.currency,durationDays:p.days}]))};
+});
 function assertEnabled(){if(enabled.value()!=='true')throw new HttpsError('failed-precondition','Premium payments are not enabled yet.');}
 function validSignature(expected,provided){if(typeof provided!=='string'||!/^[a-f0-9]{64}$/i.test(provided))return false;return crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(provided,'hex'));}
 async function api(path,method,body){
@@ -20,11 +32,12 @@ exports.createRazorpayOrder=onCall({region:'asia-south1',enforceAppCheck:true,se
  if(!request.auth)throw new HttpsError('unauthenticated','Sign in first.');
  assertEnabled();
  const plan=request.data?.plan;
- if(!Object.hasOwn(PLANS,plan))throw new HttpsError('invalid-argument','Invalid plan.');
- const config=PLANS[plan];
- const order=await api('orders','POST',{amount:config.amount,currency:'INR',receipt:crypto.randomUUID(),notes:{uid:request.auth.uid,plan}});
- await getFirestore().doc('paymentOrders/'+order.id).create({uid:request.auth.uid,plan,amount:config.amount,currency:'INR',status:'created',createdAt:FieldValue.serverTimestamp()});
- return {orderId:order.id,keyId:keyId.value(),amount:config.amount,currency:'INR'};
+ if(!['monthly','yearly'].includes(plan))throw new HttpsError('invalid-argument','Invalid plan.');
+ const config=(await readPlans())[plan];
+ if(!config)throw new HttpsError('failed-precondition','Plan is not available.');
+ const order=await api('orders','POST',{amount:config.amount,currency:config.currency,receipt:crypto.randomUUID(),notes:{uid:request.auth.uid,plan}});
+ await getFirestore().doc('paymentOrders/'+order.id).create({uid:request.auth.uid,plan,amount:config.amount,currency:config.currency,durationDays:config.days,status:'created',createdAt:FieldValue.serverTimestamp()});
+ return {orderId:order.id,keyId:keyId.value(),amount:config.amount,currency:config.currency};
 });
 async function activate(orderId,paymentId){
  const ref=getFirestore().doc('paymentOrders/'+orderId);
@@ -34,13 +47,13 @@ async function activate(orderId,paymentId){
   const order=await tx.get(ref);
   if(!order.exists)throw new Error('Unknown order.');
   const d=order.data();
-  if(d.amount!==payment.amount||d.currency!==payment.currency)throw new Error('Payment mismatch.');
+  if(!Number.isSafeInteger(d.durationDays)||d.durationDays<1||d.durationDays>3660||d.amount!==payment.amount||d.currency!==payment.currency)throw new Error('Payment mismatch.');
   if(d.status==='paid'){if(d.paymentId!==paymentId)throw new Error('Order already settled.');return;}
   const ent=getFirestore().doc('users/'+d.uid+'/entitlements/ai');
   const current=await tx.get(ent);
   const prior=current.get('expiresAt');
   const start=Math.max(Date.now(),prior&&typeof prior.toMillis==='function'?prior.toMillis():0);
-  const expiresAt=Timestamp.fromMillis(start+PLANS[d.plan].days*86400000);
+  const expiresAt=Timestamp.fromMillis(start+d.durationDays*86400000);
   tx.update(ref,{status:'paid',paymentId,paidAt:FieldValue.serverTimestamp()});
   tx.set(ent,{status:'active',plan:'paid',provider:'razorpay',expiresAt,updatedAt:FieldValue.serverTimestamp()},{merge:true});
   tx.set(getFirestore().doc('paymentTransactions/'+paymentId),{uid:d.uid,orderId,plan:d.plan,amount:d.amount,provider:'razorpay',createdAt:FieldValue.serverTimestamp()},{merge:true});
