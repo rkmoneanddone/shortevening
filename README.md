@@ -1,4 +1,4 @@
-# SortEvening
+# NashtaBuddy
 
 Lightweight Android-first family evening-snack decision assistant.
 
