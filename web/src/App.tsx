@@ -144,8 +144,8 @@ async function startPremiumCheckout(plan:'monthly'|'yearly'){
      await httpsCallable(functions,'verifyRazorpayPayment')(payment);
      await refreshSubscription();setBillingMessage('Payment verified. Your account is updating.');
     }catch(error){setFailure(errorText(error));setBillingMessage('Payment verification pending. Please refresh your subscription shortly.');}
-   },modal:{ondismiss:()=>{setCheckoutBusy(false);setBillingMessage('Checkout closed. No payment was confirmed.');}},payment:{failed:()=>setBillingMessage('Payment failed. No Premium access was activated.')}});
-  checkout.open();
+   },modal:{ondismiss:()=>{setCheckoutBusy(false);setBillingMessage('Checkout closed. No payment was confirmed.');}}});
+  checkout.on('payment.failed',()=>setBillingMessage('Payment failed. No Premium access was activated.'));checkout.open();
  }catch(error){setFailure(errorText(error));}
  finally{setCheckoutBusy(false);}
 }
