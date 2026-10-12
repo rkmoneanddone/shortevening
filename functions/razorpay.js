@@ -16,10 +16,6 @@ async function readPlans(){
  }
  return plans;
 }
-exports.getBillingPlans=onCall({region:'asia-south1',enforceAppCheck:true},async()=>{
- const plans=await readPlans();
- return {plans:Object.fromEntries(Object.entries(plans).map(([id,p])=>[id,{amountMinor:p.amount,currency:p.currency,durationDays:p.days}]))};
-});
 function assertEnabled(){if(enabled.value()!=='true')throw new HttpsError('failed-precondition','Premium payments are not enabled yet.');}
 function validSignature(expected,provided){if(typeof provided!=='string'||!/^[a-f0-9]{64}$/i.test(provided))return false;return crypto.timingSafeEqual(Buffer.from(expected,'hex'),Buffer.from(provided,'hex'));}
 async function api(path,method,body){
