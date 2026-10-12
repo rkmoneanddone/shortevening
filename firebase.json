@@ -20,6 +20,10 @@
     {
       "source": "functions",
       "codebase": "default"
+    },
+    {
+      "source": "billing-functions",
+      "codebase": "billing"
     }
   ]
 }
