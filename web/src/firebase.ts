@@ -6,7 +6,7 @@ import {initializeAppCheck,ReCaptchaEnterpriseProvider} from 'firebase/app-check
 
 const config = {
   apiKey: 'AIzaSyDK1rQLItZOBsI61BKrU-Ifg3TXVy-1eFY',
-  authDomain: 'shortevening-844df.firebaseapp.com',
+  authDomain: 'nashtabuddy.in',
   projectId: 'shortevening-844df',
   storageBucket: 'shortevening-844df.firebasestorage.app',
   messagingSenderId: '148446434869',
