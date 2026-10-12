@@ -135,7 +135,7 @@ async function startPremiumCheckout(plan:'monthly'|'yearly'){
  try{
   const create=httpsCallable<{plan:'monthly'|'yearly'},{orderId:string;keyId:string;amount:number;currency:string}>(functions,'createRazorpayOrder');
   const {data}=await create({plan});
-  const Razorpay=(window as Window & {Razorpay?:new (options:Record<string,unknown>)=>{open:()=>void}}).Razorpay;
+  const Razorpay=(window as Window & {Razorpay?:new (options:Record<string,unknown>)=>{open:()=>void;on:(event:string,handler:(response?:unknown)=>void)=>void}}).Razorpay;
   if(!Razorpay)throw Error('Payment checkout is unavailable. Please try again later.');
   setBillingMessage('Payment checkout opened. Complete or cancel the payment to continue.');
   const checkout=new Razorpay({key:data.keyId,order_id:data.orderId,amount:data.amount,currency:data.currency,name:'NashtaBuddy',description:plan==='monthly'?'Monthly Premium':'Yearly Premium',
